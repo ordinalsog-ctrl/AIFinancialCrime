@@ -1,0 +1,7 @@
+{
+  "max_precision_drop": 0.0,
+  "max_recall_drop": 0.0,
+  "max_f1_drop": 0.0,
+  "max_fpr_increase": 0.0,
+  "max_fnr_increase": 0.0
+}

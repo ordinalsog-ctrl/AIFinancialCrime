@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: aifinancialcrime
+Version: 0.1.0
+Summary: Financial Crime Intelligence Platform - core skeleton
+Requires-Python: >=3.11
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn>=0.30.0
+Requires-Dist: requests>=2.32.0
+Requires-Dist: psycopg[binary]>=3.2.0

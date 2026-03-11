@@ -1,0 +1,34 @@
+{
+  "counts": {
+    "blocks": 1,
+    "transactions": 1,
+    "tx_inputs": 1,
+    "tx_outputs": 0,
+    "non_coinbase_inputs": 0,
+    "resolvable_inputs": 0
+  },
+  "integrity": {
+    "dangling_spent_links": 0,
+    "invalid_spent_links": 0
+  },
+  "metrics": {
+    "input_address_fill_rate": 0.0,
+    "input_amount_fill_rate": 0.0,
+    "spent_link_coverage": 0.0
+  },
+  "policy": {
+    "max_dangling_spent_links": 0,
+    "max_invalid_spent_links": 0,
+    "min_input_address_fill_rate": 0.95,
+    "min_input_amount_fill_rate": 0.95,
+    "min_spent_link_coverage": 0.98
+  },
+  "checks": {
+    "dangling_spent_links_ok": true,
+    "invalid_spent_links_ok": true,
+    "input_address_fill_ok": false,
+    "input_amount_fill_ok": false,
+    "spent_link_coverage_ok": false
+  },
+  "all_ok": false
+}

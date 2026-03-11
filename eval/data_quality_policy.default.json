@@ -1,0 +1,7 @@
+{
+  "max_dangling_spent_links": 0,
+  "max_invalid_spent_links": 0,
+  "min_input_address_fill_rate": 0.95,
+  "min_input_amount_fill_rate": 0.95,
+  "min_spent_link_coverage": 0.98
+}

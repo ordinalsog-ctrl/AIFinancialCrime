@@ -1,0 +1,3 @@
+{"case_id":"clean_001","address":"bc1qexampleclean0000000000000000000000000","expected_label":"clean","notes":"Known clean reference sample"}
+{"case_id":"scam_001","address":"bc1qexamplescam00000000000000000000000000","expected_label":"scam","notes":"Known scam reference sample"}
+{"case_id":"exchange_001","address":"bc1qexampleexchange000000000000000000000","expected_label":"exchange","notes":"Known exchange sample"}
