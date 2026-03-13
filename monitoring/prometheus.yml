@@ -1,0 +1,47 @@
+# AIFinancialCrime — Prometheus Configuration
+# ============================================
+# Deploy to: /opt/aifinancialcrime/monitoring/prometheus.yml
+# Start with: prometheus --config.file=/opt/aifinancialcrime/monitoring/prometheus.yml
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    instance: aifc-pi
+    env: production
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+
+rule_files:
+  - /opt/aifinancialcrime/monitoring/alerts.yml
+
+scrape_configs:
+
+  # AIFinancialCrime API
+  - job_name: aifc_api
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # Prometheus itself
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter (system-level Pi metrics)
+  # Install: sudo apt install prometheus-node-exporter
+  - job_name: node
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 30s
+
+  # PostgreSQL Exporter (optional)
+  # Install: https://github.com/prometheus-community/postgres_exporter
+  - job_name: postgres
+    static_configs:
+      - targets: ['localhost:9187']
+    scrape_interval: 60s

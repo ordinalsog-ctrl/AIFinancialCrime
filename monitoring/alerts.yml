@@ -1,0 +1,163 @@
+# AIFinancialCrime — Prometheus Alerting Rules
+# =============================================
+# Deploy to: /opt/aifinancialcrime/monitoring/alerts.yml
+# Reference in prometheus.yml:
+#   rule_files:
+#     - /opt/aifinancialcrime/monitoring/alerts.yml
+
+groups:
+
+  # ---------------------------------------------------------------------------
+  # System Health — Raspberry Pi 5
+  # ---------------------------------------------------------------------------
+  - name: system_health
+    interval: 30s
+    rules:
+
+      - alert: DiskSpaceCritical
+        expr: (aifc_system_disk_free_bytes / (aifc_system_disk_used_bytes + aifc_system_disk_free_bytes)) < 0.10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe disk < 10% free"
+          description: "Less than 10% disk space remaining on {{ $labels.instance }}. Bitcoin Core sync may stall."
+
+      - alert: DiskSpaceWarning
+        expr: (aifc_system_disk_free_bytes / (aifc_system_disk_used_bytes + aifc_system_disk_free_bytes)) < 0.20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "NVMe disk < 20% free"
+          description: "Disk usage above 80% on {{ $labels.instance }}."
+
+      - alert: MemoryPressure
+        expr: (aifc_system_memory_used_bytes / aifc_system_memory_total_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage > 85%"
+          description: "Pi memory at {{ $value | humanizePercentage }} — may affect investigation performance."
+
+      - alert: CPUTemperatureCritical
+        expr: aifc_system_cpu_temp_celsius > 80
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU temperature critical (>80°C)"
+          description: "Raspberry Pi CPU at {{ $value }}°C — thermal throttling imminent."
+
+      - alert: CPUTemperatureWarning
+        expr: aifc_system_cpu_temp_celsius > 70
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU temperature elevated (>70°C)"
+          description: "Raspberry Pi CPU at {{ $value }}°C."
+
+  # ---------------------------------------------------------------------------
+  # API Performance
+  # ---------------------------------------------------------------------------
+  - name: api_performance
+    interval: 60s
+    rules:
+
+      - alert: APIHighErrorRate
+        expr: |
+          (
+            sum(rate(aifc_api_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(aifc_api_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API error rate > 5%"
+          description: "{{ $value | humanizePercentage }} of API requests returning 5xx."
+
+      - alert: APISlowResponses
+        expr: |
+          histogram_quantile(0.95, sum(rate(aifc_api_request_duration_seconds_bucket[5m])) by (le))
+          > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency > 10s"
+          description: "95th percentile response time is {{ $value | humanizeDuration }}."
+
+      - alert: APIDown
+        expr: absent(aifc_api_requests_total)
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AIFinancialCrime API appears down"
+          description: "No API metrics received for 3 minutes."
+
+  # ---------------------------------------------------------------------------
+  # Investigation Pipeline Quality
+  # ---------------------------------------------------------------------------
+  - name: forensic_quality
+    interval: 300s
+    rules:
+
+      - alert: AttributionHitRateLow
+        expr: aifc_attribution_hit_rate < 0.30
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Attribution hit rate < 30%"
+          description: "Current hit rate: {{ $value | humanizePercentage }}. Consider running bulk import."
+
+      - alert: InvestigationFailureRateHigh
+        expr: |
+          (
+            rate(aifc_investigations_total{status="failed"}[1h])
+            /
+            rate(aifc_investigations_total{status="started"}[1h])
+          ) > 0.10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Investigation failure rate > 10%"
+          description: "{{ $value | humanizePercentage }} of investigations failing in last hour."
+
+  # ---------------------------------------------------------------------------
+  # Blockchain API
+  # ---------------------------------------------------------------------------
+  - name: blockchain_api
+    interval: 60s
+    rules:
+
+      - alert: BlockstreamAPIErrors
+        expr: |
+          (
+            rate(aifc_blockstream_requests_total{status="error"}[10m])
+            /
+            rate(aifc_blockstream_requests_total[10m])
+          ) > 0.20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Blockstream API error rate > 20%"
+          description: "External API degraded — investigations may use cached data only."
+
+      - alert: BlockstreamAPIHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(aifc_blockstream_latency_seconds_bucket[5m])) by (le))
+          > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Blockstream API p95 latency > 5s"
+          description: "External API slow — consider Redis caching threshold adjustment."
