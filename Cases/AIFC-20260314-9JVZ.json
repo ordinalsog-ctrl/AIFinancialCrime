@@ -1,0 +1,45 @@
+{
+  "case_id": "AIFC-20260314-9JVZ",
+  "created_at": "2026-03-14T19:15:33.564Z",
+  "victim": {
+    "name": "Test 1",
+    "email": "",
+    "phone": "",
+    "country": "Germany"
+  },
+  "incident": {
+    "date": "12.12.2025 09:44 UTC",
+    "discovery_date": "19.12.2025",
+    "wallet_type": "Hardware",
+    "wallet_brand": "Ledger Nano",
+    "seed_digital": "ja",
+    "description": "19.12.2025 outgoing  Transaction seen for  12.12.2025 at  9:44 Uhr with  0,412243268 BTC, \n TX ID\n1f4bfff88ef9cfa869665cb27acbe03974bf640ccb73479bf8a3592c1c081101\nReceiver,\nbc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72"
+  },
+  "blockchain": {
+    "fraud_txid": "1f4bfff88ef9cfa869665cb27acbe03974bf640ccb73479bf8a3592c1c081101",
+    "fraud_amount_btc": "0.41240620",
+    "fraud_amount_eur": "",
+    "victim_addresses": [
+      "https://mempool.space/de/address/bc1qg2q5yr6w5dw84hzcajsy5pzwxkvqz3y79vqamr",
+      "https://mempool.space/de/address/bc1q7arfhs692cwgj7nhnugs3vzt3z77zyl5zfnpae",
+      "https://mempool.space/de/address/bc1q2nqts9hey3u63ls86l5y6y9pf7hzsf8m6097zs",
+      "https://mempool.space/de/address/bc1qxxc49pfhstaxvq9gg5965pmq35h43xzvkmd5vd",
+      "https://mempool.space/de/address/bc1qvegrt50sd3hf8my4f7myc2hq6gr40a238vl09c",
+      "https://mempool.space/de/address/bc1qrtefpya3kjn93lrr3440jm3rg3e8qd5cwf6tvk",
+      "https://mempool.space/de/address/bc1quk6r256n6x3lfdg3vfzvfgswvm07p8tks53w6h",
+      "https://mempool.space/de/address/bc1q8chlflparxe6vdyhps0ykf9utlp5g0nqtvc0a7",
+      "https://mempool.space/de/address/bc1q8chlflparxe6vdyhps0ykf9utlp5g0nqtvc0a7",
+      "https://mempool.space/de/address/bc1q7mphfunurltapx93ge2jvzly0z838r7m3uy5j0"
+    ],
+    "recipient_address": "bc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72",
+    "tx_verified": true
+  },
+  "additional": {
+    "last_legit_date": "",
+    "devices_used": "",
+    "suspicious_activity": "",
+    "notes": ""
+  },
+  "status": "confirmed",
+  "confirmed_at": "2026-03-14T19:15:42.797Z"
+}
