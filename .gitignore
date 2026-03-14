@@ -10,3 +10,6 @@ coverage/
 # Echte Falldaten — nicht auf GitHub
 cases/*.json
 output/*.pdf
+# Echte Falldaten — nicht auf GitHub
+cases/*.json
+output/*.pdf
