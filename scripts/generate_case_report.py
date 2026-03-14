@@ -984,5 +984,39 @@ def generate_all():
     print(f"   SHA-256: {report_hash}")
 
 
-if __name__ == "__main__":
+
+# PATCH: --case argument support
+import sys as _sys
+if '--case' in _sys.argv:
+    import argparse as _ap, json as _json, pathlib as _pl
+    from datetime import datetime as _dt, timezone as _tz
+    _p = _ap.ArgumentParser()
+    _p.add_argument('--case')
+    _args, _ = _p.parse_known_args()
+    if _args.case:
+        _f = _pl.Path('cases') / f'{_args.case}.json'
+        if not _f.exists():
+            print(f'Fallakte nicht gefunden: {_f}')
+            _sys.exit(1)
+        with open(_f) as _fh:
+            _d = _json.load(_fh)
+        _v = _d.get('victim', {})
+        _inc = _d.get('incident', {})
+        _bc = _d.get('blockchain', {})
+        CASE['case_id']          = _d.get('case_id', _args.case)
+        CASE['victim_name']      = _v.get('name', '')
+        CASE['victim_contact']   = _v.get('email', '')
+        CASE['incident_date']    = _inc.get('date', '')
+        CASE['discovery_date']   = _inc.get('discovery_date', '')
+        CASE['fraud_amount']     = _bc.get('fraud_amount_btc', '')
+        CASE['fraud_amount_eur'] = _bc.get('fraud_amount_eur') or '—'
+        CASE['wallet_type']      = f"{_inc.get('wallet_brand','')} ({_inc.get('wallet_type','')})"
+        CASE['generated_at']     = _dt.now(_tz.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        if _bc.get('victim_addresses'):
+            HOPS[0]['from_addresses'] = [(_a, None) for _a in _bc['victim_addresses']]
+        if _bc.get('recipient_address'):
+            HOPS[0]['to_addresses'] = [(_bc['recipient_address'], float(_bc.get('fraud_amount_btc') or 0))]
+        if _bc.get('fraud_txid'):
+            HOPS[0]['txid'] = _bc['fraud_txid']
+        print(f"✅ Fallakte: {CASE['case_id']} — {CASE['victim_name']} — {CASE['fraud_amount']} BTC")
     generate_all()

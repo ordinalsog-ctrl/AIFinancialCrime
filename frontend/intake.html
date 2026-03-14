@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIFinancialCrime — Fallaufnahme</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:         #0a0e17;
+    --surface:    #111827;
+    --surface2:   #1a2235;
+    --border:     #1e2d45;
+    --accent:     #1d6fa4;
+    --accent2:    #0e4d78;
+    --success:    #0d7a4e;
+    --warning:    #b45309;
+    --danger:     #9b1c1c;
+    --text:       #e2e8f0;
+    --text2:      #94a3b8;
+    --text3:      #475569;
+    --mono:       'IBM Plex Mono', monospace;
+    --sans:       'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(29,111,164,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(29,111,164,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .header-text h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .header-text p {
+    font-size: 12px;
+    color: var(--text2);
+    font-family: var(--mono);
+  }
+
+  .case-id-badge {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Progress */
+  .progress-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 32px;
+  }
+
+  .progress-step {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    transition: background 0.3s;
+  }
+
+  .progress-step.active { background: var(--accent); }
+  .progress-step.done   { background: var(--success); }
+
+  /* Sections */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 20px;
+    display: none;
+  }
+
+  .section.active { display: block; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .section-num {
+    width: 28px;
+    height: 28px;
+    background: var(--accent2);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .section-subtitle {
+    font-size: 12px;
+    color: var(--text2);
+    margin-left: auto;
+    font-family: var(--mono);
+  }
+
+  /* Form fields */
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .field-grid.single { grid-template-columns: 1fr; }
+  .field-grid.triple { grid-template-columns: 1fr 1fr 1fr; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.span2 { grid-column: span 2; }
+
+  label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+
+  label .required {
+    color: var(--danger);
+    margin-left: 3px;
+  }
+
+  input, select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+
+  input[type="text"], input[type="email"], input[type="tel"] {
+    font-family: var(--sans);
+  }
+
+  input.mono, .mono-input {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(29,111,164,0.15);
+  }
+
+  input.valid   { border-color: var(--success); }
+  input.invalid { border-color: var(--danger); }
+
+  textarea { resize: vertical; min-height: 80px; }
+
+  select option { background: var(--surface2); }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+
+  /* Verification badge */
+  .verify-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .verify-row input { flex: 1; }
+
+  .btn-verify {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-family: var(--mono);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .btn-verify:hover {
+    background: var(--accent2);
+    color: white;
+  }
+
+  .verify-result {
+    margin-top: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: var(--mono);
+    display: none;
+  }
+
+  .verify-result.success {
+    display: block;
+    background: rgba(13,122,78,0.1);
+    border: 1px solid rgba(13,122,78,0.3);
+    color: #34d399;
+  }
+
+  .verify-result.error {
+    display: block;
+    background: rgba(155,28,28,0.1);
+    border: 1px solid rgba(155,28,28,0.3);
+    color: #f87171;
+  }
+
+  .verify-result.loading {
+    display: block;
+    background: rgba(29,111,164,0.1);
+    border: 1px solid rgba(29,111,164,0.3);
+    color: var(--accent);
+  }
+
+  /* Address list */
+  .addr-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .addr-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .addr-item input { flex: 1; font-family: var(--mono); font-size: 12px; }
+
+  .addr-status {
+    width: 20px;
+    text-align: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .btn-add-addr {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--text2);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+
+  .btn-add-addr:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Radio/checkbox styled */
+  .radio-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+  }
+
+  .radio-option:has(input:checked) {
+    border-color: var(--accent);
+    background: rgba(29,111,164,0.1);
+    color: var(--text);
+  }
+
+  .radio-option input { display: none; }
+
+  /* Navigation */
+  .nav-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-family: var(--sans);
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover { background: #2280b8; }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .btn-success {
+    background: var(--success);
+    color: white;
+    padding: 12px 32px;
+    font-size: 14px;
+  }
+
+  .btn-danger {
+    background: var(--danger);
+    color: white;
+  }
+
+  /* Summary / Confirmation */
+  .summary-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .summary-section-title {
+    padding: 10px 16px;
+    background: rgba(29,111,164,0.1);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .summary-row {
+    display: flex;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+  }
+
+  .summary-row:last-child { border-bottom: none; }
+
+  .summary-key {
+    width: 160px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding-top: 2px;
+  }
+
+  .summary-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+
+  .badge-success { background: rgba(13,122,78,0.2); color: #34d399; border: 1px solid rgba(13,122,78,0.3); }
+  .badge-warning { background: rgba(180,83,9,0.2);  color: #fbbf24; border: 1px solid rgba(180,83,9,0.3); }
+  .badge-info    { background: rgba(29,111,164,0.2); color: var(--accent); border: 1px solid rgba(29,111,164,0.3); }
+
+  .confirm-box {
+    background: rgba(13,122,78,0.08);
+    border: 1px solid rgba(13,122,78,0.25);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .confirm-box p {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 12px;
+  }
+
+  .confirm-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .confirm-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--success);
+  }
+
+  /* Complete screen */
+  .complete-screen {
+    text-align: center;
+    padding: 48px 24px;
+  }
+
+  .complete-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .complete-screen h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .complete-screen p {
+    color: var(--text2);
+    margin-bottom: 32px;
+    font-size: 14px;
+  }
+
+  .action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .action-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .action-card:hover {
+    border-color: var(--accent);
+    background: rgba(29,111,164,0.05);
+  }
+
+  .action-card-icon { font-size: 20px; margin-bottom: 8px; }
+  .action-card-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .action-card-desc  { font-size: 11px; color: var(--text2); }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(29,111,164,0.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  @media (max-width: 600px) {
+    .field-grid { grid-template-columns: 1fr; }
+    .field.span2 { grid-column: span 1; }
+    .action-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">AF</div>
+    <div class="header-text">
+      <h1>AIFinancialCrime</h1>
+      <p>Forensische Fallaufnahme — Bitcoin</p>
+    </div>
+    <div class="case-id-badge" id="caseIdBadge">AIFC-…</div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar">
+    <div class="progress-step active" id="step1"></div>
+    <div class="progress-step" id="step2"></div>
+    <div class="progress-step" id="step3"></div>
+    <div class="progress-step" id="step4"></div>
+    <div class="progress-step" id="step5"></div>
+  </div>
+
+  <!-- Section 1: Identification -->
+  <div class="section active" id="sec1">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div class="section-title">Identifikation des Geschädigten</div>
+      <div class="section-subtitle">Pflichtangaben *</div>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Vollständiger Name <span class="required">*</span></label>
+        <input type="text" id="victimName" placeholder="Max Mustermann" required>
+      </div>
+      <div class="field">
+        <label>Land / Zuständige Behörde <span class="required">*</span></label>
+        <input type="text" id="victimCountry" placeholder="Deutschland" value="Deutschland">
+      </div>
+      <div class="field">
+        <label>E-Mail Adresse</label>
+        <input type="email" id="victimEmail" placeholder="kontakt@beispiel.de">
+      </div>
+      <div class="field">
+        <label>Telefonnummer</label>
+        <input type="tel" id="victimPhone" placeholder="+49 …">
+      </div>
+    </div>
+
+    <div class="nav-row">
+      <span></span>
+      <button class="btn btn-primary" onclick="next(1)">Weiter →</button>
+    </div>
+  </div>
+
+  <!-- Section 2: Incident -->
+  <div class="section" id="sec2">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div class="section-title">Vorfallbeschreibung</div>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Datum & Uhrzeit des Diebstahls <span class="required">*</span></label>
+        <input type="text" id="incidentDate" placeholder="12.12.2025 09:44 UTC" required>
+        <span class="field-hint">Format: TT.MM.JJJJ HH:MM UTC</span>
+      </div>
+      <div class="field">
+        <label>Datum der Entdeckung</label>
+        <input type="text" id="discoveryDate" placeholder="19.12.2025">
+      </div>
+
+      <div class="field span2">
+        <label>Wallet-Typ <span class="required">*</span></label>
+        <div class="radio-group">
+          <label class="radio-option">
+            <input type="radio" name="walletType" value="Hardware" checked>
+            🔐 Hardware Wallet
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="walletType" value="Software">
+            💻 Software Wallet
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="walletType" value="Exchange">
+            🏦 Exchange Konto
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="walletType" value="Andere">
+            📦 Andere
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Wallet / Exchange Name <span class="required">*</span></label>
+        <input type="text" id="walletBrand" placeholder="z.B. Ledger Nano X">
+      </div>
+      <div class="field">
+        <label>Seed-Phrase digital gespeichert?</label>
+        <select id="seedDigital">
+          <option value="unbekannt">Unbekannt</option>
+          <option value="nein">Nein</option>
+          <option value="ja">Ja (Foto / Cloud / Datei)</option>
+        </select>
+      </div>
+
+      <div class="field span2">
+        <label>Beschreibung des Vorfalls <span class="required">*</span></label>
+        <textarea id="incidentDesc" placeholder="Was ist passiert? Gab es verdächtige Aktivitäten, unbekannte Software, Phishing-Versuche?"></textarea>
+      </div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="prev(2)">← Zurück</button>
+      <button class="btn btn-primary" onclick="next(2)">Weiter →</button>
+    </div>
+  </div>
+
+  <!-- Section 3: Blockchain -->
+  <div class="section" id="sec3">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <div class="section-title">Blockchain-Daten</div>
+      <div class="section-subtitle">On-chain verifiziert</div>
+    </div>
+
+    <!-- TX-ID -->
+    <div class="field" style="margin-bottom:16px">
+      <label>TX-ID der unautorisierten Transaktion <span class="required">*</span></label>
+      <div class="verify-row">
+        <input type="text" id="fraudTxid" class="mono-input"
+               placeholder="1f4bfff88ef9cfa869665cb27acbe03974bf640ccb73479bf8a3592c1c081101">
+        <button class="btn-verify" onclick="verifyTx()">Verifizieren</button>
+      </div>
+      <div class="verify-result" id="txResult"></div>
+      <span class="field-hint">64 hexadezimale Zeichen</span>
+    </div>
+
+    <!-- Betrag -->
+    <div class="field-grid" style="margin-bottom:16px">
+      <div class="field">
+        <label>Gestohlener Betrag (BTC) <span class="required">*</span></label>
+        <input type="text" id="fraudAmount" class="mono-input" placeholder="0.41240620">
+      </div>
+      <div class="field">
+        <label>Ungefährer EUR-Wert</label>
+        <input type="text" id="fraudAmountEur" placeholder="z.B. ~38.000 EUR">
+      </div>
+    </div>
+
+    <!-- Opfer-Adressen -->
+    <div class="field" style="margin-bottom:16px">
+      <label>Betroffene Wallet-Adressen <span class="required">*</span></label>
+      <div class="addr-list" id="addrList">
+        <div class="addr-item">
+          <input type="text" class="mono-input addr-input" placeholder="bc1q… oder 1… oder 3…">
+          <span class="addr-status">○</span>
+        </div>
+      </div>
+      <button class="btn-add-addr" onclick="addAddr()" style="margin-top:8px">
+        + Weitere Adresse hinzufügen
+      </button>
+      <span class="field-hint">Alle Adressen die mit der Wallet verknüpft waren</span>
+    </div>
+
+    <!-- Empfängeradresse -->
+    <div class="field">
+      <label>Empfängeradresse (Täter-Wallet) <span class="required">*</span></label>
+      <div class="verify-row">
+        <input type="text" id="recipientAddr" class="mono-input"
+               placeholder="bc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72">
+        <button class="btn-verify" onclick="verifyAddr()">Verifizieren</button>
+      </div>
+      <div class="verify-result" id="addrResult"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="prev(3)">← Zurück</button>
+      <button class="btn btn-primary" onclick="next(3)">Weiter →</button>
+    </div>
+  </div>
+
+  <!-- Section 4: Additional -->
+  <div class="section" id="sec4">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <div class="section-title">Zusatzinformationen</div>
+      <div class="section-subtitle">Optional — stärkt Analyse</div>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <label>Letzte autorisierte Transaktion</label>
+        <input type="text" id="lastLegitDate" placeholder="TT.MM.JJJJ">
+        <span class="field-hint">Hilft das Zeitfenster der Kompromittierung einzugrenzen</span>
+      </div>
+      <div class="field">
+        <label>Verwendete Geräte / OS</label>
+        <input type="text" id="devicesUsed" placeholder="z.B. MacBook macOS, iPhone iOS">
+      </div>
+      <div class="field span2">
+        <label>Verdächtige Aktivitäten vor dem Vorfall</label>
+        <textarea id="suspiciousActivity"
+                  placeholder="z.B. Phishing-E-Mail erhalten, unbekannte Software installiert, Seed-Phrase eingegeben..."></textarea>
+      </div>
+      <div class="field span2">
+        <label>Weitere relevante Informationen</label>
+        <textarea id="additionalNotes" placeholder="Alles was für die Ermittlung relevant sein könnte..."></textarea>
+      </div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="prev(4)">← Zurück</button>
+      <button class="btn btn-primary" onclick="next(4)">Zusammenfassung →</button>
+    </div>
+  </div>
+
+  <!-- Section 5: Confirmation -->
+  <div class="section" id="sec5">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <div class="section-title">Bestätigung durch Geschädigten</div>
+    </div>
+
+    <!-- Summary cards -->
+    <div id="summaryContent"></div>
+
+    <!-- Confirmation -->
+    <div class="confirm-box">
+      <p>Bitte bestätigen Sie, dass alle obigen Angaben korrekt und vollständig sind.
+         Diese Zusammenfassung wird als Grundlage für die forensische Analyse,
+         die Strafanzeige und Freeze-Requests verwendet.</p>
+      <label class="confirm-check">
+        <input type="checkbox" id="confirmCheck">
+        Ich bestätige, dass alle Angaben korrekt sind und autorisiere die Durchführung
+        der forensischen Blockchain-Analyse.
+      </label>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-secondary" onclick="prev(5)">← Korrigieren</button>
+      <button class="btn btn-success" onclick="submitCase()" id="btnSubmit">
+        ✓ Fall bestätigen &amp; Analyse starten
+      </button>
+    </div>
+  </div>
+
+  <!-- Complete -->
+  <div class="section" id="secComplete">
+    <div class="complete-screen">
+      <div class="complete-icon">✅</div>
+      <h2>Fallaufnahme abgeschlossen</h2>
+      <p id="completeDesc">Fall wurde erfasst und L1-Forensik gestartet.</p>
+
+      <div class="action-grid">
+        <div class="action-card" onclick="downloadCase()">
+          <div class="action-card-icon">📄</div>
+          <div class="action-card-title">Fallakte herunterladen</div>
+          <div class="action-card-desc">JSON-Datei mit allen Falldaten</div>
+        </div>
+        <div class="action-card" onclick="generateReport()">
+          <div class="action-card-icon">📊</div>
+          <div class="action-card-title">Report generieren</div>
+          <div class="action-card-desc">Forensischer PDF-Bericht</div>
+        </div>
+        <div class="action-card">
+          <div class="action-card-icon">🏛</div>
+          <div class="action-card-title">Strafanzeige</div>
+          <div class="action-card-desc">Vorlage für Polizei / BKA</div>
+        </div>
+        <div class="action-card">
+          <div class="action-card-icon">🔒</div>
+          <div class="action-card-title">Freeze Requests</div>
+          <div class="action-card-desc">An identifizierte Exchanges</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentSection = 1;
+const totalSteps = 5;
+let caseData = {};
+let txData = null;
+
+// Generate case ID
+const caseId = 'AIFC-' + new Date().toISOString().slice(0,10).replace(/-/g,'') +
+               '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+document.getElementById('caseIdBadge').textContent = caseId;
+
+function updateProgress(step) {
+  for (let i = 1; i <= totalSteps; i++) {
+    const el = document.getElementById(`step${i}`);
+    el.className = 'progress-step' +
+      (i < step ? ' done' : i === step ? ' active' : '');
+  }
+}
+
+function showSection(n) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  const target = n > totalSteps ? 'secComplete' : `sec${n}`;
+  document.getElementById(target).classList.add('active');
+  updateProgress(Math.min(n, totalSteps));
+  window.scrollTo(0, 0);
+}
+
+function next(from) {
+  if (!validate(from)) return;
+  currentSection = from + 1;
+  if (currentSection === 5) buildSummary();
+  showSection(currentSection);
+}
+
+function prev(from) {
+  currentSection = from - 1;
+  showSection(currentSection);
+}
+
+function validate(section) {
+  if (section === 1) {
+    if (!document.getElementById('victimName').value.trim()) {
+      alert('Bitte Name eingeben'); return false;
+    }
+  }
+  if (section === 2) {
+    if (!document.getElementById('incidentDate').value.trim()) {
+      alert('Bitte Datum des Vorfalls eingeben'); return false;
+    }
+    if (!document.getElementById('walletBrand').value.trim()) {
+      alert('Bitte Wallet-Typ angeben'); return false;
+    }
+  }
+  if (section === 3) {
+    const txid = document.getElementById('fraudTxid').value.trim();
+    if (!txid || txid.length !== 64) {
+      alert('Bitte gültige TX-ID eingeben (64 Zeichen)'); return false;
+    }
+    if (!document.getElementById('fraudAmount').value.trim()) {
+      alert('Bitte Betrag eingeben'); return false;
+    }
+    const addrs = document.querySelectorAll('.addr-input');
+    const hasAddr = Array.from(addrs).some(a => a.value.trim());
+    if (!hasAddr) { alert('Bitte mindestens eine Opfer-Adresse eingeben'); return false; }
+    if (!document.getElementById('recipientAddr').value.trim()) {
+      alert('Bitte Empfängeradresse eingeben'); return false;
+    }
+  }
+  return true;
+}
+
+// On-chain verification via Blockstream
+async function verifyTx() {
+  const txid = document.getElementById('fraudTxid').value.trim();
+  const result = document.getElementById('txResult');
+  if (!txid || txid.length !== 64) {
+    result.className = 'verify-result error';
+    result.textContent = '❌ Ungültige TX-ID — muss 64 hex Zeichen sein';
+    return;
+  }
+  result.className = 'verify-result loading';
+  result.innerHTML = '<span class="spinner"></span>Verifiziere on-chain...';
+
+  try {
+    const r = await fetch(`https://mempool.space/api/tx/${txid}`);
+    if (!r.ok) throw new Error('TX nicht gefunden');
+    const tx = await r.json();
+    txData = tx;
+    const status = tx.status || {};
+    const totalOut = tx.vout.reduce((s, o) => s + (o.value || 0), 0) / 1e8;
+    const ts = status.block_time
+      ? new Date(status.block_time * 1000).toISOString().replace('T',' ').slice(0,19) + ' UTC'
+      : 'unbestätigt';
+
+    // Auto-fill amount
+    document.getElementById('fraudAmount').value = totalOut.toFixed(8);
+
+    // Auto-fill recipient
+    if (tx.vout && tx.vout.length > 0) {
+      const firstOut = tx.vout[0].scriptpubkey_address;
+      if (firstOut) document.getElementById('recipientAddr').value = firstOut;
+    }
+
+    result.className = 'verify-result success';
+    result.innerHTML = `✅ TX gefunden · Block ${status.block_height || '?'} · ${ts}<br>` +
+      `${tx.vin.length} Input(s) → ${tx.vout.length} Output(s) · ${totalOut.toFixed(8)} BTC`;
+
+  } catch(e) {
+    result.className = 'verify-result error';
+    result.textContent = `❌ ${e.message}`;
+  }
+}
+
+async function verifyAddr() {
+  const addr = document.getElementById('recipientAddr').value.trim();
+  const result = document.getElementById('addrResult');
+  if (!addr) return;
+  result.className = 'verify-result loading';
+  result.innerHTML = '<span class="spinner"></span>Verifiziere Adresse...';
+
+  try {
+    const r = await fetch(`https://mempool.space/api/address/${addr}`);
+    if (!r.ok) throw new Error('Adresse nicht gefunden');
+    const data = await r.json();
+    const chain = data.chain_stats || {};
+    const bal = ((chain.funded_txo_sum || 0) - (chain.spent_txo_sum || 0)) / 1e8;
+    result.className = 'verify-result success';
+    result.innerHTML = `✅ Adresse verifiziert · ${chain.tx_count || 0} TXs · ` +
+      `Empfangen: ${((chain.funded_txo_sum||0)/1e8).toFixed(8)} BTC · Saldo: ${bal.toFixed(8)} BTC`;
+  } catch(e) {
+    result.className = 'verify-result error';
+    result.textContent = `❌ ${e.message}`;
+  }
+}
+
+function addAddr() {
+  const list = document.getElementById('addrList');
+  const item = document.createElement('div');
+  item.className = 'addr-item';
+  item.innerHTML = `<input type="text" class="mono-input addr-input"
+    placeholder="bc1q… oder 1… oder 3…">
+    <span class="addr-status">○</span>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;
+    color:var(--text3);cursor:pointer;font-size:16px;">×</button>`;
+  list.appendChild(item);
+}
+
+function buildSummary() {
+  // Collect all data
+  caseData = {
+    case_id: caseId,
+    created_at: new Date().toISOString(),
+    victim: {
+      name:    document.getElementById('victimName').value,
+      email:   document.getElementById('victimEmail').value,
+      phone:   document.getElementById('victimPhone').value,
+      country: document.getElementById('victimCountry').value,
+    },
+    incident: {
+      date:           document.getElementById('incidentDate').value,
+      discovery_date: document.getElementById('discoveryDate').value,
+      wallet_type:    document.querySelector('input[name="walletType"]:checked')?.value,
+      wallet_brand:   document.getElementById('walletBrand').value,
+      seed_digital:   document.getElementById('seedDigital').value,
+      description:    document.getElementById('incidentDesc').value,
+    },
+    blockchain: {
+      fraud_txid:       document.getElementById('fraudTxid').value,
+      fraud_amount_btc: document.getElementById('fraudAmount').value,
+      fraud_amount_eur: document.getElementById('fraudAmountEur').value,
+      victim_addresses: Array.from(document.querySelectorAll('.addr-input'))
+                            .map(i => i.value.trim()).filter(Boolean),
+      recipient_address: document.getElementById('recipientAddr').value,
+      tx_verified: txData ? true : false,
+    },
+    additional: {
+      last_legit_date:     document.getElementById('lastLegitDate').value,
+      devices_used:        document.getElementById('devicesUsed').value,
+      suspicious_activity: document.getElementById('suspiciousActivity').value,
+      notes:               document.getElementById('additionalNotes').value,
+    },
+    status: 'pending_confirmation',
+  };
+
+  const sc = document.getElementById('summaryContent');
+  sc.innerHTML = `
+    <div class="summary-card">
+      <div class="summary-section-title">Fallidentifikation</div>
+      <div class="summary-row">
+        <div class="summary-key">Fall-ID</div>
+        <div class="summary-val">${caseId}</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-key">Geschädigter</div>
+        <div class="summary-val">${caseData.victim.name} · ${caseData.victim.country}</div>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-section-title">Vorfall</div>
+      <div class="summary-row">
+        <div class="summary-key">Datum</div>
+        <div class="summary-val">${caseData.incident.date}</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-key">Wallet</div>
+        <div class="summary-val">${caseData.incident.wallet_brand} (${caseData.incident.wallet_type})</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-key">Beschreibung</div>
+        <div class="summary-val">${caseData.incident.description || '—'}</div>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-section-title">Blockchain-Daten</div>
+      <div class="summary-row">
+        <div class="summary-key">TX-ID</div>
+        <div class="summary-val">
+          ${caseData.blockchain.fraud_txid}
+          <span class="badge ${caseData.blockchain.tx_verified ? 'badge-success' : 'badge-warning'}" style="margin-left:8px">
+            ${caseData.blockchain.tx_verified ? '✓ Verifiziert' : '? Ungeprüft'}
+          </span>
+        </div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-key">Betrag</div>
+        <div class="summary-val">
+          <strong>${caseData.blockchain.fraud_amount_btc} BTC</strong>
+          ${caseData.blockchain.fraud_amount_eur ? ' · ' + caseData.blockchain.fraud_amount_eur : ''}
+        </div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-key">Opfer-Adressen</div>
+        <div class="summary-val">
+          ${caseData.blockchain.victim_addresses.map(a =>
+            `<div>${a}</div>`).join('')}
+        </div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-key">Empfänger</div>
+        <div class="summary-val">${caseData.blockchain.recipient_address}</div>
+      </div>
+    </div>
+  `;
+}
+
+function submitCase() {
+  if (!document.getElementById('confirmCheck').checked) {
+    alert('Bitte bestätigen Sie die Korrektheit der Angaben');
+    return;
+  }
+  caseData.status = 'confirmed';
+  caseData.confirmed_at = new Date().toISOString();
+
+  document.getElementById('completeDesc').textContent =
+    `Fall ${caseId} wurde erfasst. Fallakte kann heruntergeladen werden.`;
+
+  showSection(6);
+}
+
+function downloadCase() {
+  const blob = new Blob([JSON.stringify(caseData, null, 2)],
+                        {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${caseId}.json`;
+  a.click();
+}
+
+function generateReport() {
+  alert(`Report-Generierung:\n\npython3 scripts/generate_case_report.py --case ${caseId}\n\nBitte Fallakte zuerst herunterladen und in cases/ ablegen.`);
+}
+</script>
+</body>
+</html>
