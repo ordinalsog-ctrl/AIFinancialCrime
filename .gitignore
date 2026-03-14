@@ -7,3 +7,6 @@ __pycache__/
 .mypy_cache/
 coverage/
 .env
+# Echte Falldaten — nicht auf GitHub
+cases/*.json
+output/*.pdf
