@@ -937,7 +937,9 @@ def _freeze_request(exchange_data, styles, output_path):
 
 def generate_all():
     styles = _styles()
-    os.makedirs("output", exist_ok=True)
+    CASES_DIR = pathlib.Path.home() / "AIFinancialCrime-Cases"
+    OUTPUT_DIR = CASES_DIR / "output"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # --- Hauptbericht ---
     print("Generiere forensischen Analysebericht...")
@@ -969,7 +971,7 @@ def generate_all():
 
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
-    report_path = f"output/{CASE['case_id']}_Forensischer_Analysebericht.pdf"
+    report_path = str(OUTPUT_DIR / f"{CASE['case_id']}_Forensischer_Analysebericht.pdf")
     with open(report_path, "wb") as f:
         f.write(buf.getvalue())
     print(f"  ✅ {report_path}")
@@ -977,46 +979,60 @@ def generate_all():
     # --- Freeze Requests ---
     print("Generiere Freeze Requests...")
     for ex in EXCHANGES_IDENTIFIED:
-        path = f"output/{CASE['case_id']}_Freeze_Request_{ex['name']}.pdf"
+        path = str(OUTPUT_DIR / f"{CASE['case_id']}_Freeze_Request_{ex['name']}.pdf")
         _freeze_request(ex, styles, path)
 
-    print(f"\n✅ Alle Dokumente generiert in ./output/")
+    print(f"\n✅ Alle Dokumente generiert in {OUTPUT_DIR}")
     print(f"   SHA-256: {report_hash}")
 
 
+if __name__ == "__main__":
+    import argparse, json, pathlib
 
-# PATCH: --case argument support
-import sys as _sys
-if '--case' in _sys.argv:
-    import argparse as _ap, json as _json, pathlib as _pl
-    from datetime import datetime as _dt, timezone as _tz
-    _p = _ap.ArgumentParser()
-    _p.add_argument('--case')
-    _args, _ = _p.parse_known_args()
-    if _args.case:
-        _f = _pl.Path('cases') / f'{_args.case}.json'
-        if not _f.exists():
-            print(f'Fallakte nicht gefunden: {_f}')
-            _sys.exit(1)
-        with open(_f) as _fh:
-            _d = _json.load(_fh)
-        _v = _d.get('victim', {})
-        _inc = _d.get('incident', {})
-        _bc = _d.get('blockchain', {})
-        CASE['case_id']          = _d.get('case_id', _args.case)
-        CASE['victim_name']      = _v.get('name', '')
-        CASE['victim_contact']   = _v.get('email', '')
-        CASE['incident_date']    = _inc.get('date', '')
-        CASE['discovery_date']   = _inc.get('discovery_date', '')
-        CASE['fraud_amount']     = _bc.get('fraud_amount_btc', '')
-        CASE['fraud_amount_eur'] = _bc.get('fraud_amount_eur') or '—'
-        CASE['wallet_type']      = f"{_inc.get('wallet_brand','')} ({_inc.get('wallet_type','')})"
-        CASE['generated_at']     = _dt.now(_tz.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-        if _bc.get('victim_addresses'):
-            HOPS[0]['from_addresses'] = [(_a, None) for _a in _bc['victim_addresses']]
-        if _bc.get('recipient_address'):
-            HOPS[0]['to_addresses'] = [(_bc['recipient_address'], float(_bc.get('fraud_amount_btc') or 0))]
-        if _bc.get('fraud_txid'):
-            HOPS[0]['txid'] = _bc['fraud_txid']
-        print(f"✅ Fallakte: {CASE['case_id']} — {CASE['victim_name']} — {CASE['fraud_amount']} BTC")
+    parser = argparse.ArgumentParser(description="AIFinancialCrime Report Generator")
+    parser.add_argument("--case", metavar="ID",
+                        help="Fall-ID — lädt cases/<ID>.json und generiert Report")
+    args = parser.parse_args()
+
+    if args.case:
+        CASES_DIR = pathlib.Path.home() / "AIFinancialCrime-Cases"
+        case_file = CASES_DIR / "cases" / f"{args.case}.json"
+        if not case_file.exists():
+            print(f"❌ Fallakte nicht gefunden: {case_file}")
+            print(f"   Bitte Fallakte in ~/AIFinancialCrime-Cases/cases/ ablegen.")
+            exit(1)
+
+        with open(case_file, encoding="utf-8") as f:
+            intake = json.load(f)
+
+        # Überschreibe CASE mit Intake-Daten
+        v = intake.get("victim", {})
+        inc = intake.get("incident", {})
+        bc = intake.get("blockchain", {})
+
+        CASE["case_id"]           = intake.get("case_id", args.case)
+        CASE["victim_name"]       = v.get("name", "")
+        CASE["victim_contact"]    = v.get("email", "")
+        CASE["incident_date"]     = inc.get("date", "")
+        CASE["discovery_date"]    = inc.get("discovery_date", "")
+        CASE["fraud_amount"]      = bc.get("fraud_amount_btc", "")
+        CASE["fraud_amount_eur"]  = bc.get("fraud_amount_eur", "—") or "—"
+        CASE["wallet_type"]       = f"{inc.get('wallet_brand','')} ({inc.get('wallet_type','')})"
+        CASE["generated_at"]      = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        # Hop 0 mit Intake-Daten befüllen
+        if bc.get("victim_addresses"):
+            HOPS[0]["from_addresses"] = [(a, None) for a in bc["victim_addresses"]]
+        if bc.get("recipient_address"):
+            HOPS[0]["to_addresses"] = [(bc["recipient_address"],
+                                        float(bc.get("fraud_amount_btc") or 0))]
+        if bc.get("fraud_txid"):
+            HOPS[0]["txid"] = bc["fraud_txid"]
+        HOPS[0]["timestamp"] = inc.get("date", "") + " UTC"
+
+        print(f"✅ Fallakte geladen: {case_file}")
+        print(f"   Geschädigter: {CASE['victim_name']}")
+        print(f"   Betrag:       {CASE['fraud_amount']} BTC")
+        print(f"   TX-ID:        {bc.get('fraud_txid','?')[:32]}...")
+
     generate_all()
