@@ -13,3 +13,6 @@ output/*.pdf
 # Echte Falldaten — nicht auf GitHub
 cases/*.json
 output/*.pdf
+cases/
+output/
+.env
