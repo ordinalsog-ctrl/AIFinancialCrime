@@ -97,7 +97,7 @@ class TraceEngine:
     Queries the existing blockchain tables to trace UTXO flows.
 
     Expected schema (from your 001_init.sql):
-      - transactions (txid, block_height, block_time, ...)
+      - transactions (txid, block_height, first_seen, ...)
       - tx_inputs    (txid, prev_txid, prev_vout, address, value_sat)
       - tx_outputs   (txid, vout, address, value_sat, spent_by_txid)
     """
@@ -107,13 +107,13 @@ class TraceEngine:
         SELECT
             o.txid          AS from_txid,
             o.address       AS from_address,
-            o.value_sat     AS value_sat,
+            o.amount_sats     AS value_sat,
             o.spent_by_txid AS to_txid,
             i.address       AS to_address,
             t_to.block_height AS to_block,
-            t_to.block_time   AS to_time,
+            t_to.first_seen   AS to_time,
             t_from.block_height AS from_block,
-            t_from.block_time   AS from_time
+            t_from.first_seen   AS from_time
         FROM tx_outputs o
         JOIN transactions t_from ON t_from.txid = o.txid
         JOIN transactions t_to   ON t_to.txid = o.spent_by_txid
@@ -129,45 +129,45 @@ class TraceEngine:
     TEMPORAL_MATCH_SQL = """
         WITH incoming AS (
             SELECT
-                o.txid, o.address, o.value_sat,
-                t.block_height, t.block_time
+                o.txid, o.address, o.amount_sats,
+                t.block_height, t.first_seen
             FROM tx_outputs o
             JOIN transactions t ON t.txid = o.txid
             WHERE o.address = %s
-              AND t.block_time BETWEEN %s AND %s
+              AND t.first_seen BETWEEN %s AND %s
         )
         SELECT
             inc.txid          AS from_txid,
             inc.address       AS from_address,
             inc.value_sat     AS from_value_sat,
             inc.block_height  AS from_block,
-            inc.block_time    AS from_time,
+            inc.first_seen    AS from_time,
             out2.txid         AS to_txid,
             out2.address      AS to_address,
             out2.value_sat    AS to_value_sat,
             t2.block_height   AS to_block,
-            t2.block_time     AS to_time
+            t2.first_seen     AS to_time
         FROM incoming inc
         JOIN tx_inputs inp2  ON inp2.prev_txid = inc.txid
         JOIN tx_outputs out2 ON out2.txid = inp2.txid
         JOIN transactions t2 ON t2.txid = inp2.txid
         WHERE ABS(inc.value_sat - out2.value_sat) <= 100000  -- 0.001 BTC tolerance
-          AND t2.block_time >= inc.block_time
+          AND t2.first_seen >= inc.first_seen
         ORDER BY ABS(inc.value_sat - out2.value_sat) ASC,
-                 t2.block_time ASC
+                 t2.first_seen ASC
         LIMIT %s;
     """
 
     # Fetch TX metadata
     TX_META_SQL = """
-        SELECT txid, block_height, block_time, total_output_sat
-        FROM transactions
-        WHERE txid = %s;
+        SELECT t.txid, t.block_height, t.first_seen, COALESCE(SUM(o.amount_sats), 0) AS value_sat
+        FROM transactions t LEFT JOIN tx_outputs o ON o.txid = t.txid
+        WHERE t.txid = %s GROUP BY t.txid, t.block_height, t.first_seen;
     """
 
     # Fetch outputs of a TX
     TX_OUTPUTS_SQL = """
-        SELECT vout, address, value_sat, spent_by_txid
+        SELECT vout, address, amount_sats, spent_by_txid
         FROM tx_outputs
         WHERE txid = %s
         ORDER BY vout;
@@ -185,8 +185,8 @@ class TraceEngine:
             return {
                 "txid": row[0],
                 "block_height": row[1],
-                "block_time": row[2],
-                "total_output_sat": row[3],
+                "first_seen": row[2],
+                "value_sat": row[3],
             }
 
     def get_tx_outputs(self, txid: str) -> list[dict]:
@@ -250,8 +250,8 @@ class InvestigationOrchestrator:
             raise ValueError(f"Transaction {fraud_txid} not found in database. "
                              "Ensure the block containing this TX has been ingested.")
 
-        fraud_amount = Decimal(tx_meta["total_output_sat"]) / Decimal("100000000")
-        fraud_time = datetime.fromtimestamp(tx_meta["block_time"], tz=timezone.utc)
+        fraud_amount = Decimal(tx_meta["value_sat"]) / Decimal("100000000")
+        fraud_time = datetime.fromtimestamp(tx_meta["first_seen"], tz=timezone.utc)
 
         chain = InvestigationChain(
             case_id=case_id,
