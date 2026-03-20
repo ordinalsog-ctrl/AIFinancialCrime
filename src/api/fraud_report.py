@@ -40,7 +40,7 @@ from src.investigation.confidence_engine import (
     build_temporal_hop,
 )
 from src.investigation.attribution_db import AttributionLookup, AttributionRepository
-from src.investigation.report_generator import generate_report
+from src.investigation.report_generator_v4 import generate_report
 from src.afci.ingest.bitcoin_rpc import BitcoinRpcClient
 from src.afci.ingest.run_ingest import ingest_tx_by_txid
 
@@ -107,11 +107,18 @@ class TraceEngine:
     # Direct UTXO: find TXs that spend outputs of a given TX
     DIRECT_SPEND_SQL = """
         SELECT
-            o.txid          AS from_txid,
-            o.address       AS from_address,
+            o.txid            AS from_txid,
+            o.address         AS from_address,
             o.amount_sats     AS value_sat,
-            o.spent_by_txid AS to_txid,
-            i.address       AS to_address,
+            o.spent_by_txid   AS to_txid,
+            (
+                SELECT o2.address
+                FROM tx_outputs o2
+                WHERE o2.txid = o.spent_by_txid
+                  AND o2.address != o.address
+                ORDER BY o2.amount_sats DESC
+                LIMIT 1
+            )                 AS to_address,
             t_to.block_height AS to_block,
             t_to.first_seen   AS to_time,
             t_from.block_height AS from_block,
@@ -119,9 +126,6 @@ class TraceEngine:
         FROM tx_outputs o
         JOIN transactions t_from ON t_from.txid = o.txid
         JOIN transactions t_to   ON t_to.txid = o.spent_by_txid
-        LEFT JOIN tx_inputs i    ON i.txid = o.spent_by_txid
-                                 AND i.prev_txid = o.txid
-                                 AND i.prev_vout = o.vout_index
         WHERE o.txid = %s
           AND o.spent_by_txid IS NOT NULL
         LIMIT %s;

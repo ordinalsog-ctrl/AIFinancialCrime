@@ -44,7 +44,7 @@ from reportlab.graphics import renderPDF
 from reportlab.graphics.shapes import Group
 
 # Import v3 as base
-from src.investigation.report_generator import (
+from src.investigation.report_generator_v3 import (
     generate_report,
     _build_styles,
     _make_page_template,
