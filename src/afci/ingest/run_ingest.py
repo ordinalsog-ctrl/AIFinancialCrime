@@ -168,3 +168,60 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def ingest_tx_by_txid(rpc: BitcoinRpcClient, conn, txid: str) -> bool:
+    """
+    Holt eine einzelne TX via RPC und ingested sie in PostgreSQL.
+    Wird vom fraud_report TraceEngine als Fallback genutzt.
+    Gibt True zurück wenn erfolgreich, False wenn TX nicht gefunden.
+    """
+    try:
+        raw_tx = rpc.call("getrawtransaction", [txid, True])
+    except RuntimeError:
+        return False
+
+    blockhash = raw_tx.get("blockhash")
+    if not blockhash:
+        return False  # unconfirmed
+
+    verbose_block = rpc.call("getblock", [blockhash, 1])
+    block_height = verbose_block["height"]
+    block_time = verbose_block["time"]
+    from datetime import datetime, timezone
+    block_ts = datetime.fromtimestamp(block_time, tz=timezone.utc)
+
+    from afci.db.postgres import BlockRow, TxRow, TxInputRow, TxOutputRow, tx as db_tx
+    from afci.db.postgres import upsert_block, upsert_tx, upsert_tx_input, upsert_tx_output, upsert_address, link_spent_outputs_for_tx
+    from afci.ingest.parser import btc_to_sats, _extract_address
+
+    with db_tx(conn):
+        with conn.cursor() as cur:
+            upsert_block(cur, BlockRow(height=block_height, block_hash=blockhash, timestamp=block_ts))
+
+            fee_sats = btc_to_sats(raw_tx.get("fee"))
+            upsert_tx(cur, TxRow(txid=txid, block_height=block_height, fee_sats=fee_sats, vsize=raw_tx.get("vsize")))
+
+            for vin_index, vin in enumerate(raw_tx.get("vin", [])):
+                if "coinbase" in vin:
+                    continue
+                prev_txid = vin.get("txid")
+                prev_vout_idx = vin.get("vout")
+                prevout = _resolve_prevout(rpc, prev_txid, prev_vout_idx) if prev_txid is not None else None
+                addr = prevout.get("address") if prevout else None
+                amt = btc_to_sats(prevout.get("value")) if prevout else None
+                if addr:
+                    upsert_address(cur, addr, script_type=None)
+                upsert_tx_input(cur, TxInputRow(txid=txid, vin_index=vin_index, prev_txid=prev_txid, prev_vout=prev_vout_idx, address=addr, amount_sats=amt))
+
+            for vout in raw_tx.get("vout", []):
+                spk = vout.get("scriptPubKey", {})
+                addr = _extract_address(spk)
+                amt = btc_to_sats(vout.get("value")) or 0
+                if addr:
+                    upsert_address(cur, addr, script_type=spk.get("type"))
+                upsert_tx_output(cur, TxOutputRow(txid=txid, vout_index=int(vout["n"]), address=addr, script_type=spk.get("type"), amount_sats=amt))
+
+            link_spent_outputs_for_tx(cur, txid)
+
+    return True

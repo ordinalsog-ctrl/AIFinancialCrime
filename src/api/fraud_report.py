@@ -41,6 +41,8 @@ from src.investigation.confidence_engine import (
 )
 from src.investigation.attribution_db import AttributionLookup, AttributionRepository
 from src.investigation.report_generator import generate_report
+from src.afci.ingest.bitcoin_rpc import BitcoinRpcClient
+from src.afci.ingest.run_ingest import ingest_tx_by_txid
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/intel", tags=["fraud-investigation"])
@@ -173,8 +175,9 @@ class TraceEngine:
         ORDER BY vout;
     """
 
-    def __init__(self, conn):
+    def __init__(self, conn, rpc: "BitcoinRpcClient | None" = None):
         self._conn = conn
+        self._rpc = rpc
 
     def get_tx_meta(self, txid: str) -> Optional[dict]:
         with self._conn.cursor() as cur:
@@ -201,7 +204,21 @@ class TraceEngine:
         with self._conn.cursor() as cur:
             cur.execute(self.DIRECT_SPEND_SQL, (txid, limit))
             cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+
+        if not rows and self._rpc:
+            # TX nicht in DB — via RPC ingesten und nochmal versuchen
+            try:
+                ingested = ingest_tx_by_txid(self._rpc, self._conn, txid)
+                if ingested:
+                    with self._conn.cursor() as cur:
+                        cur.execute(self.DIRECT_SPEND_SQL, (txid, limit))
+                        cols = [d[0] for d in cur.description]
+                        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+            except Exception as e:
+                logger.warning(f"RPC auto-ingest failed for {txid}: {e}")
+
+        return rows
 
     def find_temporal_matches(
         self,
@@ -232,8 +249,8 @@ class InvestigationOrchestrator:
       TraceEngine → ConfidenceEngine → AttributionLookup → InvestigationChain
     """
 
-    def __init__(self, conn, attribution_lookup: AttributionLookup):
-        self._trace = TraceEngine(conn)
+    def __init__(self, conn, attribution_lookup: AttributionLookup, rpc=None):
+        self._trace = TraceEngine(conn, rpc=rpc)
         self._attr = attribution_lookup
 
     def run(
@@ -436,7 +453,12 @@ async def create_fraud_report(
     try:
         repo = AttributionRepository(conn)
         lookup = AttributionLookup(repo)
-        orchestrator = InvestigationOrchestrator(conn, lookup)
+        rpc = BitcoinRpcClient(
+            url=os.environ.get("BITCOIN_RPC_URL", "http://192.168.178.93:8332"),
+            user=os.environ.get("BITCOIN_RPC_USER", "aifc"),
+            password=os.environ.get("BITCOIN_RPC_PASSWORD", "CHANGE_ME"),
+        )
+        orchestrator = InvestigationOrchestrator(conn, lookup, rpc=rpc)
 
         chain = orchestrator.run(
             case_id=case_id,
