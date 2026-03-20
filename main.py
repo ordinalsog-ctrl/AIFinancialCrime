@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 """
 src/api/main.py
 Hauptanwendung — FastAPI mit allen Routern + Frontend-Serving

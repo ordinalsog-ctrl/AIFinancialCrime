@@ -119,7 +119,7 @@ class TraceEngine:
         JOIN transactions t_to   ON t_to.txid = o.spent_by_txid
         LEFT JOIN tx_inputs i    ON i.txid = o.spent_by_txid
                                  AND i.prev_txid = o.txid
-                                 AND i.prev_vout = o.vout
+                                 AND i.prev_vout = o.vout_index
         WHERE o.txid = %s
           AND o.spent_by_txid IS NOT NULL
         LIMIT %s;
@@ -139,21 +139,21 @@ class TraceEngine:
         SELECT
             inc.txid          AS from_txid,
             inc.address       AS from_address,
-            inc.value_sat     AS from_value_sat,
+            inc.amount_sats   AS from_value_sat,
             inc.block_height  AS from_block,
             inc.first_seen    AS from_time,
             out2.txid         AS to_txid,
             out2.address      AS to_address,
-            out2.value_sat    AS to_value_sat,
+            out2.amount_sats  AS to_value_sat,
             t2.block_height   AS to_block,
             t2.first_seen     AS to_time
         FROM incoming inc
         JOIN tx_inputs inp2  ON inp2.prev_txid = inc.txid
         JOIN tx_outputs out2 ON out2.txid = inp2.txid
         JOIN transactions t2 ON t2.txid = inp2.txid
-        WHERE ABS(inc.value_sat - out2.value_sat) <= 100000  -- 0.001 BTC tolerance
+        WHERE ABS(inc.amount_sats - out2.amount_sats) <= 100000  -- 0.001 BTC tolerance
           AND t2.first_seen >= inc.first_seen
-        ORDER BY ABS(inc.value_sat - out2.value_sat) ASC,
+        ORDER BY ABS(inc.amount_sats - out2.amount_sats) ASC,
                  t2.first_seen ASC
         LIMIT %s;
     """
@@ -210,12 +210,12 @@ class TraceEngine:
         window_seconds: int = 21600,  # 6h
         limit: int = 5,
     ) -> list[dict]:
-        to_time = from_time.timestamp() + window_seconds
+        to_time = from_time + __import__("datetime").timedelta(seconds=window_seconds)
         with self._conn.cursor() as cur:
             cur.execute(self.TEMPORAL_MATCH_SQL, (
                 address,
-                int(from_time.timestamp()),
-                int(to_time),
+                from_time,
+                from_time + __import__("datetime").timedelta(seconds=window_seconds),
                 limit,
             ))
             cols = [d[0] for d in cur.description]
@@ -251,7 +251,7 @@ class InvestigationOrchestrator:
                              "Ensure the block containing this TX has been ingested.")
 
         fraud_amount = Decimal(tx_meta["value_sat"]) / Decimal("100000000")
-        fraud_time = datetime.fromtimestamp(tx_meta["first_seen"], tz=timezone.utc)
+        fraud_time = tx_meta["first_seen"] if isinstance(tx_meta["first_seen"], datetime) else datetime.fromtimestamp(tx_meta["first_seen"], tz=timezone.utc)
 
         chain = InvestigationChain(
             case_id=case_id,
