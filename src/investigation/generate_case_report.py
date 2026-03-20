@@ -931,6 +931,88 @@ def _freeze_request(exchange_data, styles, output_path):
     print(f"  ✅ {output_path}")
 
 
+
+# ---------------------------------------------------------------------------
+# DB-Integration — Hops automatisch laden
+# ---------------------------------------------------------------------------
+
+def load_hops_from_db(fraud_txid: str, max_hops: int = 10) -> list:
+    """
+    Lädt die Hop-Chain automatisch aus PostgreSQL.
+    Ersetzt die hardcoded HOPS für Hops 1+.
+    """
+    import os, psycopg2
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    conn = psycopg2.connect(os.environ["POSTGRES_DSN"])
+    hops = []
+    visited = set()
+    current_txids = [fraud_txid]
+    hop_idx = 1
+
+    try:
+        while current_txids and hop_idx <= max_hops:
+            next_txids = []
+            for txid in current_txids:
+                if txid in visited:
+                    continue
+                visited.add(txid)
+
+                with conn.cursor() as cur:
+                    # Outputs die ausgegeben wurden
+                    cur.execute("""
+                        SELECT o.txid, o.address, o.amount_sats, o.spent_by_txid,
+                               t.block_height, t.first_seen
+                        FROM tx_outputs o
+                        JOIN transactions t ON t.txid = o.txid
+                        WHERE o.txid = %s AND o.spent_by_txid IS NOT NULL
+                        LIMIT 5
+                    """, (txid,))
+                    rows = cur.fetchall()
+
+                for row in rows:
+                    from_txid, from_addr, amount_sats, to_txid, block, ts = row
+                    if to_txid in visited:
+                        continue
+
+                    # Outputs der Folge-TX
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            SELECT o2.address, o2.amount_sats
+                            FROM tx_outputs o2
+                            WHERE o2.txid = %s
+                            ORDER BY o2.amount_sats DESC
+                        """, (to_txid,))
+                        to_rows = cur.fetchall()
+
+                    to_addresses = [(r[0], r[1]/1e8) for r in to_rows if r[0]]
+                    ts_str = ts.strftime("%d.%m.%Y ~%H:%M UTC") if ts else "—"
+
+                    hops.append({
+                        "hop": hop_idx,
+                        "label": f"Hop {hop_idx} — UTXO Weiterleitung",
+                        "txid": to_txid,
+                        "block": block or 0,
+                        "timestamp": ts_str,
+                        "from_addresses": [(from_addr, amount_sats/1e8)],
+                        "to_addresses": to_addresses,
+                        "fee_btc": None,
+                        "confidence": "L1",
+                        "confidence_label": "Mathematisch bewiesen",
+                        "method": "Direkter UTXO-Link",
+                        "notes": f"Automatisch erkannt via lokalen Bitcoin-Node.",
+                    })
+                    next_txids.append(to_txid)
+                    hop_idx += 1
+
+            current_txids = next_txids
+    finally:
+        conn.close()
+
+    return hops
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1034,5 +1116,16 @@ if __name__ == "__main__":
         print(f"   Geschädigter: {CASE['victim_name']}")
         print(f"   Betrag:       {CASE['fraud_amount']} BTC")
         print(f"   TX-ID:        {bc.get('fraud_txid','?')[:32]}...")
+
+        # Hops automatisch aus DB laden
+        fraud_txid_val = bc.get("fraud_txid")
+        if fraud_txid_val:
+            print("Lade Hops aus PostgreSQL-DB...")
+            db_hops = load_hops_from_db(fraud_txid_val)
+            if db_hops:
+                HOPS[1:] = db_hops
+                print(f"   {len(db_hops)} Hops aus DB geladen.")
+            else:
+                print("   Keine Hops in DB — nutze hardcoded Hops.")
 
     generate_all()

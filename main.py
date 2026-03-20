@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.fraud_report import router as fraud_router
+from src.api.report_endpoint import router_report
 from src.api.cases import router as cases_router
 
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_DSN")
