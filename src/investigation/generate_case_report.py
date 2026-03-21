@@ -352,13 +352,15 @@ def _cover(styles):
     # Zusammenfassung
     story.append(Paragraph("Zusammenfassung", styles["h1"]))
     story += _hr()
+    exchange_names = " und ".join(f"<b>{e['name']}</b>" for e in EXCHANGES_IDENTIFIED) if EXCHANGES_IDENTIFIED else "<b>unbekannte Empfänger</b>"
+    input_count = len(HOPS[0]["from_addresses"]) if HOPS else 0
     story.append(Paragraph(
         f"Am {CASE['incident_date']} wurden ohne Autorisierung des Inhabers "
-        f"<b>{CASE['fraud_amount']}</b> Bitcoin vom vollständigen Bestand einer Ledger "
-        f"Hardware Wallet entwendet. Die gestohlenen Mittel wurden in einer einzigen "
-        f"Transaktion (9 Inputs → 1 Output) konsolidiert und anschließend durch "
-        f"Splitting auf zwei Pfade aufgeteilt (Layering). Die Blockchain-Analyse "
-        f"identifiziert <b>Huobi</b> und <b>Poloniex</b> als Ziel-Exchanges.",
+        f"<b>{CASE['fraud_amount']}</b> Bitcoin vom vollständigen Bestand einer "
+        f"{CASE['wallet_type']} entwendet. Die gestohlenen Mittel wurden in einer einzigen "
+        f"Transaktion ({input_count} Inputs → 1 Output) konsolidiert und anschließend "
+        f"durch Splitting auf mehrere Pfade aufgeteilt (Layering). Die Blockchain-Analyse "
+        f"identifiziert {exchange_names} als Ziel-Exchanges.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
@@ -471,32 +473,80 @@ def _transaction_graph(styles):
     COL_WHITE    = colors.white
     COL_LIGHT    = colors.HexColor("#ECF0F1")
 
-    # Node-Definitionen: (x_pct, y_pct, label, sublabel, color, radius)
-    # x/y in Prozent der Canvas-Breite/Höhe
-    nodes = {
-        "victim":   (0.08, 0.50, "9 Opfer-\nAdressen", "0.4124 BTC", COL_VICTIM,   10),
-        "thief":    (0.28, 0.50, "bc1qztlxu7...", "Täter-Wallet", COL_THIEF,    9),
-        "split_a":  (0.46, 0.72, "bc1qtm8nrn...", "0.2000 BTC", COL_THIEF,    7),
-        "split_b":  (0.46, 0.28, "bc1qtrqkv3...", "0.2124 BTC", COL_THIEF,    7),
-        "inter_a":  (0.63, 0.72, "1DLymHytX...", "Intermediär", COL_INTER,    7),
-        "inter_b":  (0.63, 0.28, "1B2opjpPP...", "Intermediär", COL_INTER,    7),
-        "huobi":    (0.85, 0.60, "Huobi", "1AQLXAB6...", COL_EXCHANGE, 11),
-        "poloniex": (0.85, 0.28, "Poloniex", "1LgW4RA5...", COL_EXCHANGE, 11),
-        "unknown":  (0.85, 0.85, "Unbekannt", "Intermediär", COL_INTER,    8),
-    }
+    # Dynamischer Graph aus HOPS
+    # Schritt 1: Alle eindeutigen Adressen sammeln
+    addr_roles = {}  # addr -> role: victim/thief/inter/exchange
+    
+    # Opfer-Adressen
+    for addr, _ in (HOPS[0]["from_addresses"] if HOPS else []):
+        if addr:
+            addr_roles[addr] = "victim"
+    
+    # Alle anderen Adressen aus Hops
+    for hop in HOPS:
+        for addr, _ in hop.get("to_addresses", []):
+            if not addr:
+                continue
+            if addr in addr_roles:
+                continue
+            if hop.get("exchange"):
+                addr_roles[addr] = "exchange"
+            else:
+                addr_roles[addr] = "thief"
+        for addr, _ in hop.get("from_addresses", []):
+            if addr and addr not in addr_roles:
+                addr_roles[addr] = "thief"
 
-    # Edges: (from, to, label, confidence)
-    edges = [
-        ("victim",  "thief",    "TX 1f4bfff8\nBlock 927547", "L1"),
-        ("thief",   "split_a",  "TX 5e1e80ff\nBlock 927550", "L1"),
-        ("thief",   "split_b",  "TX 578dbd7a\nBlock 927551", "L1"),
-        ("split_a", "inter_a",  "TX df8dd002\nBlock 927550", "L1"),
-        ("split_b", "inter_b",  "TX 8d362e37\nBlock 927551", "L1"),
-        ("inter_a", "huobi",    "L2", "L2"),
-        ("inter_b", "huobi",    "L2", "L2"),
-        ("inter_a", "unknown",  "", "L2"),
-        ("inter_b", "poloniex", "L2", "L2"),
-    ]
+    # Schritt 2: Unique Adressen als Nodes platzieren
+    unique_addrs = list(dict.fromkeys(
+        [a for h in HOPS for a,_ in h.get("from_addresses",[]) + h.get("to_addresses",[]) if a]
+    ))
+    
+    n = len(unique_addrs)
+    nodes = {}
+    for i, addr in enumerate(unique_addrs):
+        role = addr_roles.get(addr, "thief")
+        x_pct = 0.05 + (i / max(n-1, 1)) * 0.90
+        y_pct = 0.5
+        # Staffeln: Opfer oben, Exchanges unten
+        if role == "victim":
+            y_pct = 0.80
+        elif role == "exchange":
+            y_pct = 0.20
+        elif i % 2 == 0:
+            y_pct = 0.65
+        else:
+            y_pct = 0.35
+            
+        col = {"victim": COL_VICTIM, "thief": COL_THIEF,
+               "exchange": COL_EXCHANGE, "inter": COL_INTER}.get(role, COL_THIEF)
+        short = addr[:10] + "..."
+        label = addr[:8] + "..."
+        radius = 11 if role == "exchange" else (10 if role == "victim" else 7)
+        
+        # Exchange Namen
+        ex_name = next((h.get("exchange","") for h in HOPS 
+                       if any(a==addr for a,_ in h.get("to_addresses",[]))), "")
+        sublabel = ex_name if ex_name else f"{short}"
+        if ex_name:
+            label = ex_name
+            
+        nodes[addr] = (x_pct, y_pct, label, sublabel, col, radius)
+
+    # Schritt 3: Edges aus Hops
+    edges = []
+    for hop in HOPS:
+        for from_addr, _ in hop.get("from_addresses", []):
+            if not from_addr or from_addr not in nodes:
+                continue
+            for to_addr, _ in hop.get("to_addresses", []):
+                if not to_addr or to_addr not in nodes:
+                    continue
+                conf = hop.get("confidence", "L1")
+                tx_short = hop["txid"][:8] if len(hop["txid"]) == 64 else ""
+                block = hop.get("block", "")
+                edge_label = f"TX {tx_short}\nBlock {block}" if tx_short and conf == "L1" else ""
+                edges.append((from_addr, to_addr, edge_label, conf))
 
     # Positionen berechnen
     pos = {}
@@ -505,6 +555,8 @@ def _transaction_graph(styles):
 
     # Edges zeichnen
     for src, dst, label, conf in edges:
+        if src not in pos or dst not in pos:
+            continue
         x1, y1 = pos[src]
         x2, y2 = pos[dst]
         edge_color = COL_EDGE if conf == "L1" else colors.HexColor("#AEB6BF")
@@ -523,7 +575,7 @@ def _transaction_graph(styles):
         if length > 0:
             ux, uy = dx/length, dy/length
             # Zurücksetzen um Node-Radius
-            nr = nodes[dst][5] + 1
+            nr = (nodes[dst][5] if dst in nodes else 7) + 1
             ax = x2 - ux * nr
             ay = y2 - uy * nr
             # Pfeil
@@ -744,8 +796,10 @@ def _recommended_actions(styles):
          C_ALERT,
          [
              "Strafanzeige bei der zuständigen Polizeibehörde erstatten (Cybercrime-Abteilung)",
-             "Freeze-Request an Huobi Compliance: compliance@huobi.com",
-             "Freeze-Request an Poloniex Compliance: support@poloniex.com",
+         ] + [
+             f"Freeze-Request an {ex['name']} Compliance: {ex['compliance_email']}"
+             for ex in EXCHANGES_IDENTIFIED
+         ] + [
              "Alle Freeze-Requests mit dieser Analyse und den TX-IDs dokumentieren",
          ]),
         ("KURZFRISTIG (innerhalb 1 Woche)",
