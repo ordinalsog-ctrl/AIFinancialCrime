@@ -2,14 +2,12 @@
 """
 AIFinancialCrime — Fall-Report Generator
 =========================================
-Standalone Script für Fall: Ledger Wallet Diebstahl 12.12.2025
-Generiert:
-  1. Forensischer Analysebericht (PDF)
-  2. Freeze-Request Huobi (PDF)
-  3. Freeze-Request Poloniex (PDF)
+Dieses Modul wird NUR als Bibliothek von report_endpoint.py genutzt.
+ALLE Daten (CASE, HOPS, EXCHANGES_IDENTIFIED) werden vom Endpoint
+vor der PDF-Generierung dynamisch gesetzt.
+Hardcoded Werte hier dienen NUR als leere Vorlage / Typ-Referenz.
 
-Aufruf:
-    python3 generate_case_report.py
+NICHT direkt ausführen. Nur über den API-Endpoint nutzen.
 """
 
 import hashlib
@@ -32,186 +30,14 @@ from reportlab.platypus import (
 # Falldaten
 # ---------------------------------------------------------------------------
 
-CASE = {
-    "case_id":        "AIFC-2025-001",
-    "victim_name":    "Jonas Weiss",
-    "victim_contact": "",
-    "incident_date":  "12.12.2025 09:44 UTC",
-    "discovery_date": "19.12.2025",
-    "fraud_amount":   "0.41240620 BTC",
-    "fraud_amount_eur": "~38.000 EUR (Kurs 12.12.2025)",
-    "wallet_type":    "Ledger Hardware Wallet (USB)",
-    "generated_at":   datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-}
+# ---------------------------------------------------------------------------
+# Laufzeit-Daten — werden von report_endpoint.py VOR der PDF-Generierung gesetzt
+# Nie direkt hier ändern. Kein Hardcoding. Nur leere Vorlage.
+# ---------------------------------------------------------------------------
 
-# Transaktionskette
-HOPS = [
-    {
-        "hop": 0,
-        "label": "Diebstahl — Konsolidierung",
-        "txid": "1f4bfff88ef9cfa869665cb27acbe03974bf640ccb73479bf8a3592c1c081101",
-        "block": 927547,
-        "timestamp": "12.12.2025 09:44 UTC",
-        "from_addresses": [
-            ("bc1qg2q5yr6w5dw84hzcajsy5pzwxkvqz3y79vqamr", 0.12248481),
-            ("bc1q7arfhs692cwgj7nhnugs3vzt3z77zyl5zfnpae", 0.02086576),
-            ("bc1q2nqts9hey3u63ls86l5y6y9pf7hzsf8m6097zs", 0.00712257),
-            ("bc1qxxc49pfhstaxvq9gg5965pmq35h43xzvkmd5vd", 0.00857886),
-            ("bc1qvegrt50sd3hf8my4f7myc2hq6gr40a238vl09c", 0.00857713),
-            ("bc1qrtefpya3kjn93lrr3440jm3rg3e8qd5cwf6tvk", 0.06139335),
-            ("bc1quk6r256n6x3lfdg3vfzvfgswvm07p8tks53w6h", 0.05488155),
-            ("bc1q8chlflparxe6vdyhps0ykf9utlp5g0nqtvc0a7", 0.10507195),
-            ("bc1q7mphfunurltapx93ge2jvzly0z838r7m3uy5j0", 0.02345670),
-        ],
-        "to_addresses": [
-            ("bc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72", 0.41240620),
-        ],
-        "fee_btc": 0.00002648,
-        "confidence": "L1",
-        "confidence_label": "Mathematisch bewiesen",
-        "method": "Direkter UTXO-Link",
-        "notes": "9 Opfer-Adressen in einer TX konsolidiert. Vollständiger Saldo abgezogen. Keine Change-Output.",
-    },
-    {
-        "hop": 1,
-        "label": "Layering — Split in zwei Pfade",
-        "txid": "5e1e80ff0bb4362ccdd2626df3b6c5f95c8a661c4e8ab27be1d489c707b66371",
-        "block": 927550,
-        "timestamp": "12.12.2025 ~10:14 UTC",
-        "from_addresses": [
-            ("bc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72", 0.41240620),
-        ],
-        "to_addresses": [
-            ("bc1qtm8nrnm6n4498mym3tndaddttc0d53pzqmrcgn", 0.20000000),
-            ("bc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72", 0.21240479),
-        ],
-        "fee_btc": 0.00000141,
-        "confidence": "L1",
-        "confidence_label": "Mathematisch bewiesen",
-        "method": "Direkter UTXO-Link",
-        "notes": "Runder Betrag (0.20 BTC) typisch für Exchange-Einzahlung. Change zurück an Täter-Adresse.",
-    },
-    {
-        "hop": 2,
-        "label": "Layering — Zweiter Split",
-        "txid": "578dbd7a557c6307b8306f68434363b2cfe14bc889cfa7d2c0e7b8c72b3d962a",
-        "block": 927551,
-        "timestamp": "12.12.2025 ~10:20 UTC",
-        "from_addresses": [
-            ("bc1qztlxu7flfclwfadlysrlv3lc5efnlrhxtwud72", 0.21240479),
-        ],
-        "to_addresses": [
-            ("bc1qtrqkv3kk4jeecz4psnzcdz3hdkrmyeuuzcw8d3", 0.21240000),
-        ],
-        "fee_btc": 0.00000479,
-        "confidence": "L1",
-        "confidence_label": "Mathematisch bewiesen",
-        "method": "Direkter UTXO-Link",
-        "notes": "Restbetrag weitergeleitet.",
-    },
-    {
-        "hop": 3,
-        "label": "Exchange-Einzahlung Pfad A → Intermediär",
-        "txid": "df8dd0028b34abc4193205b4711f1a38ada20f0c3514a0d5a579da0e81b54d6a",
-        "block": 927550,
-        "timestamp": "12.12.2025 ~10:14 UTC",
-        "from_addresses": [
-            ("bc1qtm8nrnm6n4498mym3tndaddttc0d53pzqmrcgn", 0.20000000),
-        ],
-        "to_addresses": [
-            ("1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr", 0.19999805),
-        ],
-        "fee_btc": 0.00000195,
-        "confidence": "L1",
-        "confidence_label": "Mathematisch bewiesen",
-        "method": "Direkter UTXO-Link",
-        "notes": "Intermediär-Adresse mit 56 TXs und 0.527 BTC Gesamtvolumen.",
-    },
-    {
-        "hop": 4,
-        "label": "Exchange-Einzahlung Pfad B → Intermediär",
-        "txid": "8d362e37f4079db1bd28c203374450f903d2eb8bb8359f732f0f63504d48cf8e",
-        "block": 927551,
-        "timestamp": "12.12.2025 ~10:20 UTC",
-        "from_addresses": [
-            ("bc1qtrqkv3kk4jeecz4psnzcdz3hdkrmyeuuzcw8d3", 0.21240000),
-        ],
-        "to_addresses": [
-            ("1B2opjpPPJNVQHmCjyxqnGP6mLq4wQcPgg", 0.21239805),
-        ],
-        "fee_btc": 0.00000195,
-        "confidence": "L1",
-        "confidence_label": "Mathematisch bewiesen",
-        "method": "Direkter UTXO-Link",
-        "notes": "Intermediär-Adresse mit 37 TXs und 1.764 BTC Gesamtvolumen.",
-    },
-    {
-        "hop": 5,
-        "label": "Exchange-Identifikation — HUOBI (Pfad A + B)",
-        "txid": "mehrere (siehe Hop 3+4 Weiterleitung)",
-        "block": "927550–938583",
-        "timestamp": "12.12.2025 – Jan 2026",
-        "from_addresses": [
-            ("1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr", 0.19999805),
-            ("1B2opjpPPJNVQHmCjyxqnGP6mLq4wQcPgg", 0.21239805),
-        ],
-        "to_addresses": [
-            ("1AQLXAB6aXSVbRMjbhSBudLf1kcsbWSEjg", None),
-        ],
-        "fee_btc": None,
-        "confidence": "L2",
-        "confidence_label": "Forensisch belegt",
-        "method": "WalletExplorer Attribution (wallet_id: 0000044b60b2c25d)",
-        "notes": "Adresse 1AQLXAB6... ist Teil des Huobi.com-2 Wallet-Clusters. 103.134 TXs, 583.144 BTC Gesamtvolumen. Quelle: WalletExplorer.com.",
-        "exchange": "Huobi",
-    },
-    {
-        "hop": 6,
-        "label": "Exchange-Identifikation — POLONIEX (Pfad A)",
-        "txid": "via Cluster 0000001bce8b8aa0",
-        "block": "~928000+",
-        "timestamp": "nach 12.12.2025",
-        "from_addresses": [
-            ("1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr", None),
-        ],
-        "to_addresses": [
-            ("1LgW4RA5iE98khRJ58Bhx5RLABP3QGjn9y", None),
-        ],
-        "fee_btc": None,
-        "confidence": "L2",
-        "confidence_label": "Forensisch belegt",
-        "method": "WalletExplorer Attribution (Poloniex.com)",
-        "notes": "Adresse 1LgW4RA5... ist Poloniex.com zugeordnet per WalletExplorer. Indirekter Pfad via Intermediär-Cluster.",
-        "exchange": "Poloniex",
-    },
-]
-
-EXCHANGES_IDENTIFIED = [
-    {
-        "name": "Huobi",
-        "address": "1AQLXAB6aXSVbRMjbhSBudLf1kcsbWSEjg",
-        "wallet_id": "0000044b60b2c25d",
-        "label": "Huobi.com-2",
-        "tx_count": 103134,
-        "confidence": "L2",
-        "compliance_email": "compliance@huobi.com",
-        "compliance_url": "https://www.htx.com/en-us/support/",
-        "btc_involved": 0.41240620,
-        "note": "Beide Pfade (A+B) führen zu dieser Adresse.",
-    },
-    {
-        "name": "Poloniex",
-        "address": "1LgW4RA5iE98khRJ58Bhx5RLABP3QGjn9y",
-        "wallet_id": "Poloniex.com (WalletExplorer)",
-        "label": "Poloniex.com",
-        "tx_count": None,
-        "confidence": "L2",
-        "compliance_email": "support@poloniex.com",
-        "compliance_url": "https://poloniex.com/support",
-        "btc_involved": 0.19999805,
-        "note": "Indirekter Pfad via Intermediär-Cluster.",
-    },
-]
+CASE: dict = {}
+HOPS: list = []
+EXCHANGES_IDENTIFIED: list = []
 
 # ---------------------------------------------------------------------------
 # Farben & Styles
@@ -311,7 +137,7 @@ def _cover(styles):
     story.append(Spacer(1, 8))
 
     subtitle_data = [[
-        Paragraph("Wallet-Diebstahl — Ledger Hardware Wallet", ParagraphStyle(
+        Paragraph(f"Wallet-Diebstahl — {CASE.get('wallet_type', 'Hardware Wallet')}", ParagraphStyle(
             "subtitle", fontSize=11, fontName="Helvetica",
             textColor=C_WHITE, alignment=TA_CENTER
         ))
@@ -752,7 +578,57 @@ def _chain_of_custody(styles):
         else:
             verify = []
 
-        story.append(KeepTogether([header_tbl, detail_tbl] + verify + [Spacer(1, 8)]))
+        # Kettenende-Banner wenn dies der letzte L1-Hop ist
+        chain_end = hop.get("chain_end_reason")
+        end_elements = []
+        if chain_end:
+            end_texts = {
+                "exchange": (
+                    C_ALERT,
+                    "⬛  KETTENENDE — Exchange identifiziert",
+                    "Die gestohlenen Mittel wurden auf einer Kryptobörse eingezahlt. "
+                    "Die L1-Beweiskette endet hier. Ein formeller Freeze-Request wurde "
+                    "für diese Exchange generiert."
+                ),
+                "pooling": (
+                    colors.HexColor("#5D4037"),
+                    "⬛  KETTENENDE — Pooling / Konsolidierung erkannt",
+                    "Die gestohlenen Mittel wurden mit Fremdmitteln zusammengeführt. "
+                    "Eine mathematisch eindeutige Zuordnung (L1) ist ab diesem Punkt "
+                    "nicht mehr möglich. Die Beweiskette endet hier gemäss forensischem Standard."
+                ),
+                "unspent": (
+                    colors.HexColor("#1A5276"),
+                    "⬛  KETTENENDE — UTXO nicht ausgegeben",
+                    "Die gestohlenen Mittel liegen noch unausgegeben an dieser Adresse "
+                    "(Stand: Analysezeitpunkt). Die Kette endet hier natürlich. "
+                    "Ein direktes Freeze-Request an Behörden ist empfohlen."
+                ),
+            }
+            if chain_end in end_texts:
+                bg_col, title_str, body_str = end_texts[chain_end]
+                end_title_data = [[Paragraph(title_str, ParagraphStyle(
+                    "end_h", fontSize=8.5, fontName="Helvetica-Bold", textColor=C_WHITE
+                ))]]
+                end_title_tbl = Table(end_title_data, colWidths=[PAGE_W - 2*MARGIN])
+                end_title_tbl.setStyle(TableStyle([
+                    ("BACKGROUND",    (0,0), (-1,-1), bg_col),
+                    ("TOPPADDING",    (0,0), (-1,-1), 5),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+                    ("LEFTPADDING",   (0,0), (-1,-1), 8),
+                ]))
+                end_body = Table([[Paragraph(body_str, styles["small"])]],
+                                 colWidths=[PAGE_W - 2*MARGIN])
+                end_body.setStyle(TableStyle([
+                    ("BACKGROUND",    (0,0), (-1,-1), colors.HexColor("#1C2833")),
+                    ("TOPPADDING",    (0,0), (-1,-1), 5),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+                    ("LEFTPADDING",   (0,0), (-1,-1), 8),
+                    ("GRID",          (0,0), (-1,-1), 0.3, C_BORDER),
+                ]))
+                end_elements = [end_title_tbl, end_body, Spacer(1, 4)]
+
+        story.append(KeepTogether([header_tbl, detail_tbl] + verify + end_elements + [Spacer(1, 8)]))
 
     return story
 
@@ -808,7 +684,7 @@ def _recommended_actions(styles):
              "Anzeige bei BaFin (Deutschland) oder zuständiger nationaler Finanzaufsicht",
              "Europol EC3 Meldung: https://www.europol.europa.eu/report-a-crime",
              "Rechtsanwalt mit Cryptocurrency-Erfahrung hinzuziehen",
-             "Alle Ledger-Geräte als kompromittiert betrachten — neue Seed-Phrase generieren",
+             f"Alle {CASE.get('wallet_type', 'Wallet-Geräte')} als kompromittiert betrachten — neue Seed-Phrase generieren",
          ]),
         ("MITTELFRISTIG",
          C_SUCCESS,
@@ -915,13 +791,17 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(Spacer(1, 8))
 
     # Ursprungs-TX
+    _fraud_txid = HOPS[0]["txid"] if HOPS else ""
+    _fraud_block = str(HOPS[0].get("block", "")) if HOPS else ""
+    _fraud_ts = HOPS[0].get("timestamp", CASE.get("incident_date", "")) if HOPS else CASE.get("incident_date", "")
+    _fraud_amount = CASE.get("fraud_amount", "")
     story.append(Paragraph("Ursprungstransaktion (Diebstahl):", styles["h2"]))
     tx_rows = [
-        ["TX-ID",      "1f4bfff88ef9cfa869665cb27acbe03974bf640ccb73479bf8a3592c1c081101"],
-        ["Block",      "927547"],
-        ["Zeitstempel","12.12.2025 09:44 UTC"],
-        ["Betrag",     "0.41240620 BTC (gesamter Wallet-Bestand)"],
-        ["Verifikation","https://blockstream.info/tx/1f4bfff88ef9cfa869665cb27acbe03974bf640ccb73479bf8a3592c1c081101"],
+        ["TX-ID",       _fraud_txid],
+        ["Block",       _fraud_block],
+        ["Zeitstempel", _fraud_ts],
+        ["Betrag",      _fraud_amount],
+        ["Verifikation", f"https://blockstream.info/tx/{_fraud_txid}"],
     ]
     tx_tbl = Table(tx_rows, colWidths=[28*mm, PAGE_W - 2*MARGIN - 28*mm])
     tx_tbl.setStyle(TableStyle([
@@ -975,7 +855,7 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(Paragraph(f"Fall-Referenz: {CASE['case_id']}", styles["small"]))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        "Beilage: Vollständiger forensischer Blockchain-Analysebericht (AIFC-2025-001)",
+        f"Beilage: Vollständiger forensischer Blockchain-Analysebericht ({CASE['case_id']})",
         styles["small"]
     ))
 

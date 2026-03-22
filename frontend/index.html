@@ -368,6 +368,7 @@ let txData = null;
 let resultData = null;
 let selectedInputs = new Set();
 let recipientAddr = '';
+let manualAttributions = {}; // {address: exchange_name}
 
 const caseId = 'AIFC-' + new Date().toISOString().slice(0,10).replace(/-/g,'') +
                '-' + Math.random().toString(36).slice(2,6).toUpperCase();
@@ -461,17 +462,10 @@ function renderTxAddresses(tx) {
   picker.style.display = 'block';
   selectedInputs.clear();
 
-  // Outputs: letzter Output ist meist der Empfänger (größter Betrag oder einziger Output)
-  // Bei 1 Output: das ist der Empfänger
-  let recipientOutput = null;
-  if (tx.vout.length === 1) {
-    recipientOutput = tx.vout[0];
-  } else {
-    // Größter Output = wahrscheinlich Empfänger
-    recipientOutput = tx.vout.reduce((a, b) => (b.value > a.value ? b : a), tx.vout[0]);
-  }
-  recipientAddr = recipientOutput?.scriptpubkey_address || '';
-  document.getElementById('recipientDisplay').textContent = recipientAddr || '—';
+  // Empfänger wird manuell vom User gewählt — keine Auto-Selektion
+  recipientAddr = '';
+  manualAttributions = {};
+  document.getElementById('recipientDisplay').textContent = '← Klick auf einen Output um den Täter zu markieren';
 
   // Input-Adressen rendern
   const inputContainer = document.getElementById('inputAddrs');
@@ -513,35 +507,74 @@ function renderTxAddresses(tx) {
   tx.vout.forEach((vout, i) => {
     const addr = vout.scriptpubkey_address;
     if (!addr) return;
-    const isRecipient = addr === recipientAddr;
     const val = (vout.value / 1e8).toFixed(8);
 
     const row = document.createElement('div');
     row.className = 'addr-row';
-    if (isRecipient) row.style.opacity = '0.5';
     row.dataset.addr = addr;
     row.dataset.group = 'outputs';
+    row.id = `output-row-${i}`;
     row.innerHTML = `
-      <input type="checkbox" ${isRecipient ? 'disabled' : ''} onchange="toggleAddr(this, '${addr}')">
       <div class="addr-row-info">
         <div class="addr-row-addr" title="${addr}">${addr}</div>
         <div class="addr-row-val">${val} BTC</div>
       </div>
-      <span class="addr-row-badge ${isRecipient ? 'badge-recipient' : 'badge-output'}">${isRecipient ? 'EMPFÄNGER' : 'OUTPUT'}</span>
+      <span class="addr-row-badge badge-output" id="output-badge-${i}">OUTPUT</span>
+      <button style="margin-left:8px;background:rgba(180,83,9,0.15);border:1px solid rgba(180,83,9,0.4);color:#fbbf24;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--mono)"
+              onclick="setRecipient('${addr}', ${i})">Als Täter markieren</button>
+      <button id="ex-btn-${i}" style="margin-left:4px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.35);color:#93c5fd;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--mono)"
+              onclick="markExchange('${addr}', ${i})">Als Exchange markieren</button>
     `;
-    if (!isRecipient) {
-      row.onclick = (e) => {
-        if (e.target.type !== 'checkbox') {
-          const cb = row.querySelector('input[type=checkbox]');
-          cb.checked = !cb.checked;
-          toggleAddr(cb, addr);
-        }
-      };
-    }
     outputContainer.appendChild(row);
   });
 
   updateSelectedCount();
+}
+
+function setRecipient(addr, idx) {
+  // Alle Output-Rows zurücksetzen
+  document.querySelectorAll('.addr-row[data-group="outputs"]').forEach(r => {
+    r.classList.remove('selected');
+    r.style.borderColor = '';
+    const badge = r.querySelector('.addr-row-badge');
+    if (badge && badge.textContent === 'TÄTER') {
+      badge.textContent = 'OUTPUT';
+      badge.className = 'addr-row-badge badge-output';
+    }
+  });
+  // Neue Auswahl markieren
+  recipientAddr = addr;
+  const row = document.getElementById(`output-row-${idx}`);
+  if (row) {
+    row.classList.add('selected');
+    row.style.borderColor = '#b45309';
+    const badge = document.getElementById(`output-badge-${idx}`);
+    if (badge) { badge.textContent = 'TÄTER'; badge.className = 'addr-row-badge badge-recipient'; }
+  }
+  document.getElementById('recipientDisplay').textContent = addr;
+  updateSelectedCount();
+}
+
+const EXCHANGE_OPTIONS = ['Binance','Coinbase','Kraken','Huobi','Bitfinex','OKX','Bybit','Bitstamp','KuCoin','Gate.io','Gemini','Bittrex','Poloniex','Bitget','MEXC','Andere'];
+
+function markExchange(addr, idx) {
+  const current = manualAttributions[addr];
+  const exchange = prompt(
+    `Exchange für Adresse:\n${addr}\n\nBekannte Exchanges: ${EXCHANGE_OPTIONS.join(', ')}\n\nExchange-Name eingeben (leer lassen zum Entfernen):`,
+    current || ''
+  );
+  if (exchange === null) return; // Abbrechen
+  const btn = document.getElementById(`ex-btn-${idx}`);
+  const badge = document.getElementById(`output-badge-${idx}`);
+  if (exchange.trim()) {
+    manualAttributions[addr] = exchange.trim();
+    if (btn) { btn.textContent = `✓ ${exchange.trim()}`; btn.style.background = 'rgba(59,130,246,0.3)'; btn.style.borderColor = '#3b82f6'; }
+    if (badge && badge.textContent !== 'TÄTER') { badge.textContent = 'EXCHANGE'; badge.className = 'addr-row-badge'; badge.style.cssText = 'font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.4);'; }
+  } else {
+    delete manualAttributions[addr];
+    if (btn) { btn.textContent = 'Als Exchange markieren'; btn.style.background = 'rgba(59,130,246,0.12)'; btn.style.borderColor = 'rgba(59,130,246,0.35)'; }
+    if (badge && badge.textContent === 'EXCHANGE') { badge.textContent = 'OUTPUT'; badge.className = 'addr-row-badge badge-output'; badge.style.cssText = ''; }
+  }
 }
 
 function toggleAddr(checkbox, addr) {
@@ -590,6 +623,7 @@ function buildSummary() {
     victim_addresses: Array.from(selectedInputs),
     recipient_address: recipientAddr,
     additional_notes: document.getElementById('suspiciousActivity').value,
+    manual_attributions: {...manualAttributions},
   };
 
   document.getElementById('summaryContent').innerHTML = `
@@ -604,6 +638,7 @@ function buildSummary() {
       <div class="summary-row"><div class="summary-key">Betrag</div><div class="summary-val">${caseData.fraud_amount_btc} BTC ${caseData.fraud_amount_eur ? '· '+caseData.fraud_amount_eur : ''}</div></div>
       <div class="summary-row"><div class="summary-key">Empfänger</div><div class="summary-val">${caseData.recipient_address}</div></div>
       <div class="summary-row"><div class="summary-key">Ihre Adressen</div><div class="summary-val">${caseData.victim_addresses.map(a=>`<div>${a}</div>`).join('')}</div></div>
+      ${Object.keys(caseData.manual_attributions).length > 0 ? `<div class="summary-row"><div class="summary-key">Exchange (manuell)</div><div class="summary-val">${Object.entries(caseData.manual_attributions).map(([a,e])=>`<div>${a} → ${e}</div>`).join('')}</div></div>` : ''}
     </div>
   `;
 }
