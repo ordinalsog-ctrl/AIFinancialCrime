@@ -41,6 +41,54 @@ router_report = APIRouter(prefix="/intel", tags=["forensic-report"])
 
 
 # ---------------------------------------------------------------------------
+# Exchange Intel Agent Client (Stufe 1 — nach lokaler DB, vor WalletExplorer)
+# ---------------------------------------------------------------------------
+
+_exchange_intel_session = None  # urllib3-freie Singleton-Verbindung
+
+
+def _exchange_intel_lookup(address: str) -> Optional[dict]:
+    """
+    Prüft Adresse im BTC Exchange Intel Agent (1.76M Adressen, 26 Entities).
+    Schnell, lokal, keine externen API-Calls.
+    Konfiguration: EXCHANGE_INTEL_API_URL + EXCHANGE_INTEL_API_KEY
+    """
+    base_url = os.environ.get("EXCHANGE_INTEL_API_URL", "").rstrip("/")
+    if not base_url:
+        return None
+    api_key = os.environ.get("EXCHANGE_INTEL_API_KEY", "")
+    try:
+        url = f"{base_url}/v1/address/{address}"
+        headers = {"User-Agent": "AIFinancialCrime/2.0"}
+        if api_key:
+            headers["X-API-Key"] = api_key
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as r:
+            data = json.loads(r.read())
+        if not data.get("found"):
+            return None
+        entity = data.get("entity") or ""
+        canonical = next(
+            (name for key, name in KNOWN_EXCHANGES.items() if key in entity.lower()),
+            entity
+        )
+        source_type = data.get("best_source_type", "exchange_intel")
+        confidence = "L1" if source_type in ("official_por", "seed") else "L2"
+        logger.debug(f"INTEL-HIT: {address[:20]} → {canonical} (source={source_type})")
+        return {
+            "exchange": canonical,
+            "label": f"{canonical} ({source_type})",
+            "wallet_id": "",
+            "source": f"exchange-intel/{source_type}",
+            "confidence": confidence,
+            "is_sanctioned": False,
+        }
+    except Exception as e:
+        logger.debug(f"ExchangeIntel lookup failed {address[:20]}: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # DB-basierte Exchange-Erkennung (Stufe 0 — VOR allen API-Calls)
 # ---------------------------------------------------------------------------
 
@@ -249,11 +297,18 @@ def _lookup_address_exchange(addr: str, call_counter: list) -> Optional[dict]:
         if cached.get("exchange"):
             return cached
         return None
-    # DB-Lookup (kein API-Call-Budget verbraucht)
+    # Stufe 0: Lokale DB (kein API-Call-Budget verbraucht)
     db_result = _db_exchange_lookup(addr)
     if db_result:
         _attribution_cache[addr] = {**db_result, "_downstream_checked": True}
         return db_result
+    # Stufe 1: Exchange Intel Agent (1.76M Adressen, lokal)
+    intel_result = _exchange_intel_lookup(addr)
+    if intel_result:
+        _attribution_cache[addr] = {**intel_result, "_downstream_checked": True}
+        _db_persist_attribution(addr, intel_result["exchange"], "EXCHANGE_INTEL",
+                                {"source": intel_result.get("source"), "label": intel_result.get("label")})
+        return intel_result
     if call_counter[0] >= 6:
         return None
     call_counter[0] += 1
@@ -393,7 +448,14 @@ def _check_address(address: str, use_downstream: bool = True) -> dict:
     # 0. Lokale DB — Seed-Daten + persistent gespeicherte API-Ergebnisse (KEIN API-Call)
     attribution = _db_exchange_lookup(address)
 
-    # 1. WalletExplorer (direkte Erkennung)
+    # 1. Exchange Intel Agent — 1.76M Adressen, lokal (KEIN externer API-Call)
+    if not attribution:
+        attribution = _exchange_intel_lookup(address)
+        if attribution and attribution.get("exchange"):
+            _db_persist_attribution(address, attribution["exchange"], "EXCHANGE_INTEL",
+                                    {"source": attribution.get("source"), "label": attribution.get("label")})
+
+    # 2. WalletExplorer (direkte Erkennung)
     if not attribution:
         attribution = _walletexplorer_lookup(address)
         if attribution and attribution.get("exchange"):
@@ -401,7 +463,7 @@ def _check_address(address: str, use_downstream: bool = True) -> dict:
                                     {"label": attribution.get("label"), "wallet_id": attribution.get("wallet_id")})
     if not attribution:
         time.sleep(0.2)
-        # 2. Blockchair (API-Key erforderlich)
+        # 3. Blockchair (API-Key erforderlich)
         attribution = _blockchair_lookup(address)
         if attribution and attribution.get("exchange"):
             _db_persist_attribution(address, attribution["exchange"], "BLOCKCHAIR",

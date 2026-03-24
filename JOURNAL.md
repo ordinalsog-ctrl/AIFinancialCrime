@@ -242,3 +242,91 @@ _check_address(addr)
 - Seed-Daten erweitern (mehr Adressen pro Exchange)
 - WalletExplorer Cluster-Scraping evaluieren (Batch-Import ganzer Cluster)
 - CIOH (Common Input Ownership Heuristic) für Phase 2 vorbereiten
+
+---
+
+## Session 2026-03-24 — BTC Exchange Intel Agent Integration (Meilenstein I, Stufe 1)
+
+### Hintergrund
+
+Parallel zu AIFinancialCrime wurde ein dedizierter **BTC Exchange Intel Agent** entwickelt:
+- GitHub: https://github.com/ordinalsog-ctrl/btc-exchange-intel-agent
+- Zweck: Zuverlässige, verifizierte Exchange-Adressen (L1-Qualität, keine Heuristiken)
+- Snapshot Stand 2026-03-23: **1.761.245 Bitcoin-Adressen**, 26 Entities, 10.646 offizielle PoR-Adressen
+- API läuft lokal auf `http://localhost:8080`
+- Python-Client: `btc_exchange_intel_agent.client.ExchangeIntelClient`
+- Datenbank: PostgreSQL + SQLite Snapshot, WalletExplorer Backfill läuft noch
+
+### Was wurde gemacht
+
+**`src/api/report_endpoint.py`** — Exchange Intel Agent als Stufe 1:
+
+1. **`_exchange_intel_lookup(address)`** (NEU) — neue Lookup-Funktion
+   - HTTP GET `http://localhost:8080/v1/address/{address}`
+   - X-API-Key Header wenn `EXCHANGE_INTEL_API_KEY` gesetzt
+   - 5 Sekunden Timeout (lokal, daher schnell)
+   - `best_source_type` bestimmt Confidence: `official_por` / `seed` → L1, sonst → L2
+   - Persistiert Treffer via `_db_persist_attribution(..., "EXCHANGE_INTEL")`
+
+2. **`_check_address()` aktualisiert** — neue Stufenreihenfolge:
+   - Stufe 0: Lokale DB (Seed + persistent gespeichert)
+   - **Stufe 1: Exchange Intel Agent (1.76M Adressen) ← NEU**
+   - Stufe 2: WalletExplorer API
+   - Stufe 3: Blockchair API
+   - Stufe 4: Downstream-Analyse (nur `use_downstream=True`)
+
+3. **`_lookup_address_exchange()` aktualisiert** — Exchange Intel Agent nach DB, vor WalletExplorer
+
+**`.env`** — Neue Variablen:
+```
+EXCHANGE_INTEL_API_URL=http://localhost:8080
+EXCHANGE_INTEL_API_KEY=
+```
+
+**PostgreSQL** — `EXCHANGE_INTEL` als Attribution Source registriert:
+- `source_key=EXCHANGE_INTEL`, `priority=2` (zwischen OFAC und SEED_EXCHANGE), `is_authoritative=TRUE`
+
+### Neue Architektur: Exchange-Erkennung (komplett)
+
+```
+_check_address(addr)
+  ↓
+  0. Lokale DB (address_attributions) ← SCHNELL, GRATIS
+  ↓ (kein Hit)
+  1. Exchange Intel Agent (1.76M Adressen, lokal) ← NEU, SCHNELL
+  ↓ (kein Hit)
+  2. WalletExplorer API → bei Hit: _db_persist_attribution()
+  ↓ (kein Hit)
+  3. Blockchair API → bei Hit: _db_persist_attribution()
+  ↓ (kein Hit, use_downstream=True)
+  4. Downstream-Analyse (Blockstream → Spending-TX → DB/API)
+```
+
+### WalletExplorer Cluster-Evaluation
+
+Recherche-Ergebnisse:
+- WalletExplorer hat **kostenlosen, öffentlichen JSON-API** — kein API-Key nötig
+- Endpoint: `/api/1/wallet-addresses?wallet=Binance.com&from=0&count=1000` — paginiert alle Adressen eines Clusters
+- Binance-Cluster: **295.029 Adressen** (≈295 Seiten à 1000)
+- Rate Limit: offiziell "keine Limits", historisch ~1 req/sec safe
+- WalletExplorer ist Chainalysis-owned — Queries werden geloggt (für Strafverfolgung positiv)
+- Datengüte: bis 94.85% True Positive Rate, <0.15% False Positive Rate (unabhängig evaluiert)
+- Bundesrichter hat Chainalysis-Daten als gerichtsfest eingestuft (Bitcoin Fog Case)
+- Der Exchange Intel Agent backfilled WalletExplorer bereits aktiv (`provider_backfill_we20.db`)
+- → Kein eigenständiges Scraping nötig — der Agent übernimmt das
+
+### Integration mit Exchange Intel Agent
+
+Der Agent liefert via API:
+- `GET /v1/address/{address}` — einzelne Adresse
+- `POST /v1/lookup/batch` — Batch (empfohlen für mehrere Adressen gleichzeitig)
+- `GET /v1/entity/{entity_name}/addresses` — alle Adressen einer Exchange
+- `GET /v1/stats` — Datenbankstatistiken
+
+Sobald der WalletExplorer-Backfill des Agents abgeschlossen ist, werden nahezu alle bekannten Exchange-Cluster-Adressen automatisch verfügbar — ohne dass AIFinancialCrime selbst scrapen muss.
+
+### Nächste Schritte (Meilenstein I)
+- Server testen mit dem neuen Lookup (Exchange Intel Agent muss laufen: `docker compose up -d`)
+- Batch-Lookup für Hop-Analyse implementieren (alle Output-Adressen eines Hops auf einmal anfragen)
+- Exchange Intel Agent API-Key setzen in `.env` (wenn AGENT_API_KEY konfiguriert)
+- Weitere Transaktionen testen
