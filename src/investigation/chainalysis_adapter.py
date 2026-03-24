@@ -23,18 +23,20 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Optional
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 from urllib.parse import quote
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 logger = logging.getLogger("aifc.chainalysis")
 
 CHAINALYSIS_BASE     = "https://public.chainalysis.com"
-CHAINALYSIS_API_KEY  = os.environ.get(
-    "CHAINALYSIS_API_KEY",
-    "313a3ad73801d615d2326dd8cd8ac8a9d733fdf209bfa8fcc207da1646f2a092"
-)
+CHAINALYSIS_API_KEY  = os.environ.get("CHAINALYSIS_API_KEY", "")
 RATE_LIMIT_SECONDS   = 0.07   # 5000 req / 5min = ~16/sec, konservativ ~14/sec
 
 

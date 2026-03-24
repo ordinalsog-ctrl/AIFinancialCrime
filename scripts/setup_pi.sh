@@ -210,46 +210,6 @@ log "Alle Migrationen abgeschlossen"
 step "7 / 9 — Systemd Services + Timer"
 # =============================================================================
 
-# ── Service: täglicher Attribution-Update ───────────────────────────────────
-cat > /etc/systemd/system/aifc-attribution-update.service <<UNIT
-[Unit]
-Description=AIFinancialCrime — Attribution DB Update
-After=network-online.target postgresql.service
-Wants=network-online.target
-Documentation=https://github.com/ordinalsog-ctrl/AIFinancialCrime
-
-[Service]
-Type=oneshot
-User=$APP_USER
-WorkingDirectory=$PROJECT_DIR
-EnvironmentFile=$ENV_FILE
-ExecStart=$VENV/bin/python scripts/run_bulk_attribution_import.py --update
-ExecStartPost=$VENV/bin/python scripts/run_attribution_ingest.py --all
-StandardOutput=append:$LOG_DIR/attribution_update.log
-StandardError=append:$LOG_DIR/attribution_update.log
-# Automatisch neu versuchen bei Netzwerk-Fehler
-Restart=on-failure
-RestartSec=5min
-StartLimitBurst=3
-StartLimitIntervalSec=1h
-UNIT
-
-cat > /etc/systemd/system/aifc-attribution-update.timer <<UNIT
-[Unit]
-Description=AIFinancialCrime — täglich 03:30 Attribution Update
-
-[Timer]
-# Jeden Tag um 03:30 Uhr
-OnCalendar=*-*-* 03:30:00
-# Bis zu 10 Minuten Streuung — schont gemeinsame APIs
-RandomizedDelaySec=600
-# Verpasste Runs nachholen (z.B. nach Neustart oder Stromausfall)
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-UNIT
-
 # ── Service: wöchentliches System-Update ────────────────────────────────────
 cat > /etc/systemd/system/aifc-system-update.service <<UNIT
 [Unit]
@@ -318,11 +278,9 @@ LOGROTATE
 # ── Systemd neu laden und aktivieren ────────────────────────────────────────
 systemctl daemon-reload
 
-systemctl enable --quiet aifc-attribution-update.timer
 systemctl enable --quiet aifc-system-update.timer
 systemctl enable --quiet aifc-api.service
 
-systemctl start aifc-attribution-update.timer
 systemctl start aifc-system-update.timer
 systemctl start aifc-api.service
 
@@ -355,23 +313,10 @@ else
 fi
 
 # =============================================================================
-step "9 / 9 — Erstimport Attribution-Daten"
+step "9 / 9 — Abschluss"
 # =============================================================================
-log "Starte Erstimport (kann 1-5 Minuten dauern)..."
-
-set -a; source "$ENV_FILE"; set +a
-
-sudo -u "$APP_USER" "$VENV/bin/python" \
-    "$PROJECT_DIR/scripts/run_bulk_attribution_import.py" --full \
-    2>&1 | tee -a "$LOG_DIR/attribution_update.log"
-
-log "Erstimport abgeschlossen"
-
-# OFAC + bestehende Ingesters
-if [[ -f "$PROJECT_DIR/scripts/run_attribution_ingest.sh" ]]; then
-    sudo -u "$APP_USER" bash "$PROJECT_DIR/scripts/run_attribution_ingest.sh" \
-        2>&1 | tee -a "$LOG_DIR/attribution_update.log" || warn "OFAC-Ingester: Netzwerk-Fehler — wird morgen nachgeholt"
-fi
+log "Kein lokaler Exchange-Adress-Import mehr im Hauptprojekt."
+log "Exchange-Erkennung wird zentral über den BTC Exchange Intel Agent bereitgestellt."
 
 # =============================================================================
 # Abschluss-Status
@@ -384,7 +329,6 @@ echo ""
 echo -e "  ${GREEN}✓${NC} PostgreSQL läuft          (DB: $DB_NAME)"
 echo -e "  ${GREEN}✓${NC} API-Server läuft          (Port 8000)"
 echo -e "  ${GREEN}✓${NC} Frontend                  (http://$(hostname -I | awk '{print $1}'):8000)"
-echo -e "  ${GREEN}✓${NC} Attribution-Update        (täglich 03:30)"
 echo -e "  ${GREEN}✓${NC} System-Update             (sonntags 02:00)"
 echo -e "  ${GREEN}✓${NC} Logs                      ($LOG_DIR/)"
 echo ""
@@ -395,8 +339,8 @@ echo -e "  2. Bitcoin Core RPC-Zugangsdaten eintragen (nach Sync)"
 echo -e "  3. Status prüfen:"
 echo -e "     ${BLUE}sudo systemctl list-timers 'aifc-*'${NC}"
 echo -e "     ${BLUE}sudo journalctl -u aifc-api.service -f${NC}"
-echo -e "  4. Attribution-DB-Statistiken:"
-echo -e "     ${BLUE}python scripts/run_bulk_attribution_import.py --stats${NC}"
+echo -e "  4. BTC Exchange Intel Agent erreichbar machen und in .env setzen:"
+echo -e "     ${BLUE}EXCHANGE_INTEL_API_URL=http://localhost:8080${NC}"
 echo ""
 echo -e "  ${YELLOW}DB-Passwort (für Backup sichern):${NC}"
 echo -e "  $DB_PASS"

@@ -41,16 +41,61 @@ router_report = APIRouter(prefix="/intel", tags=["forensic-report"])
 
 
 # ---------------------------------------------------------------------------
-# Exchange Intel Agent Client (Stufe 1 — nach lokaler DB, vor WalletExplorer)
+# Exchange Intel Agent Client (zentrale Exchange-Erkennung)
 # ---------------------------------------------------------------------------
 
-_exchange_intel_session = None  # urllib3-freie Singleton-Verbindung
+
+def _canonical_exchange_name(raw_name: str) -> str:
+    return next(
+        (name for key, name in KNOWN_EXCHANGES.items() if key in raw_name.lower()),
+        raw_name,
+    )
+
+
+def _extract_exchange_intel_entity_name(payload: dict) -> str:
+    entity = payload.get("entity")
+    if isinstance(entity, dict):
+        name = entity.get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    if isinstance(entity, str) and entity.strip():
+        return entity.strip()
+    for label in payload.get("labels") or []:
+        if not isinstance(label, dict):
+            continue
+        raw_name = label.get("entity_name") or label.get("source_name")
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip()
+    return ""
+
+
+def _confidence_from_source_type(source_type: str) -> tuple[int, str]:
+    if source_type in ("official_por", "seed"):
+        return 1, "L1"
+    return 2, "L2"
+
+
+def _is_acam_burdenable_attribution(attribution: Optional[dict]) -> bool:
+    """ACAM-konservativ: nur direkte, belastbare Attributionen beenden eine Kette.
+
+    Inferenz aus dem verwendeten Confidence-Framework:
+    - L1/L2 duerfen in den Bericht und zur Belastung genutzt werden.
+    - reine Downstream-/Heuristik-Treffer bleiben Hinweise, aber keine
+      belastbaren Exchange-Endpunkte.
+    """
+    if not attribution or not attribution.get("exchange"):
+        return False
+    source = str(attribution.get("source") or "")
+    if source.startswith("downstream-analysis"):
+        return False
+    return str(attribution.get("confidence") or "") in {"L1", "L2"}
 
 
 def _exchange_intel_lookup(address: str) -> Optional[dict]:
     """
-    Prüft Adresse im BTC Exchange Intel Agent (1.76M Adressen, 26 Entities).
-    Schnell, lokal, keine externen API-Calls.
+    Prüft Adresse im BTC Exchange Intel Agent.
+    Der Agent ist die zentrale Instanz fuer Exchange-Erkennung und darf
+    bei DB-Miss selbst live weitere Quellen aufloesen.
     Konfiguration: EXCHANGE_INTEL_API_URL + EXCHANGE_INTEL_API_KEY
     """
     base_url = os.environ.get("EXCHANGE_INTEL_API_URL", "").rstrip("/")
@@ -58,7 +103,7 @@ def _exchange_intel_lookup(address: str) -> Optional[dict]:
         return None
     api_key = os.environ.get("EXCHANGE_INTEL_API_KEY", "")
     try:
-        url = f"{base_url}/v1/address/{address}"
+        url = f"{base_url}/v1/address/{address}?live_resolve=true"
         headers = {"User-Agent": "AIFinancialCrime/2.0"}
         if api_key:
             headers["X-API-Key"] = api_key
@@ -67,13 +112,10 @@ def _exchange_intel_lookup(address: str) -> Optional[dict]:
             data = json.loads(r.read())
         if not data.get("found"):
             return None
-        entity = data.get("entity") or ""
-        canonical = next(
-            (name for key, name in KNOWN_EXCHANGES.items() if key in entity.lower()),
-            entity
-        )
         source_type = data.get("best_source_type", "exchange_intel")
-        confidence = "L1" if source_type in ("official_por", "seed") else "L2"
+        _, confidence = _confidence_from_source_type(source_type)
+        entity_name = _extract_exchange_intel_entity_name(data)
+        canonical = _canonical_exchange_name(entity_name) if entity_name else "Unknown Exchange"
         logger.debug(f"INTEL-HIT: {address[:20]} → {canonical} (source={source_type})")
         return {
             "exchange": canonical,
@@ -86,86 +128,6 @@ def _exchange_intel_lookup(address: str) -> Optional[dict]:
     except Exception as e:
         logger.debug(f"ExchangeIntel lookup failed {address[:20]}: {e}")
         return None
-
-
-# ---------------------------------------------------------------------------
-# DB-basierte Exchange-Erkennung (Stufe 0 — VOR allen API-Calls)
-# ---------------------------------------------------------------------------
-
-def _get_db_conn():
-    """Holt die globale DB-Verbindung aus main.py."""
-    from main import get_db
-    return get_db()
-
-
-def _db_exchange_lookup(address: str) -> Optional[dict]:
-    """
-    Prüft Adresse in der lokalen PostgreSQL-Datenbank (address_attributions).
-    Schnellste Prüfung — kein API-Call, keine Latenz.
-    Enthält Seed-Daten (bekannte Hot/Cold Wallets) + persistent gespeicherte API-Ergebnisse.
-    """
-    try:
-        conn = _get_db_conn()
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT aa.entity_name, aa.entity_type, s.source_key, aa.confidence_level,
-                       aa.is_sanctioned, aa.raw_source_data
-                FROM address_attributions aa
-                JOIN attribution_sources s ON aa.source_id = s.source_id
-                WHERE aa.address = %s AND aa.entity_type = 'EXCHANGE'
-                ORDER BY s.priority ASC
-                LIMIT 1
-            """, (address,))
-            row = cur.fetchone()
-        if row:
-            entity_name, entity_type, source_key, conf_level, is_sanctioned, raw_data = row
-            # Kanonischen Namen verwenden falls vorhanden
-            canonical = next(
-                (name for key, name in KNOWN_EXCHANGES.items() if key in entity_name.lower()),
-                entity_name
-            )
-            logger.debug(f"DB-HIT: {address[:20]} → {canonical} (source={source_key})")
-            return {
-                "exchange": canonical,
-                "label": f"{canonical} (DB: {source_key})",
-                "wallet_id": "",
-                "source": f"local-db/{source_key}",
-                "confidence": "L1" if conf_level == 1 else "L2",
-                "is_sanctioned": bool(is_sanctioned),
-            }
-    except Exception as e:
-        logger.debug(f"DB lookup failed for {address[:20]}: {e}")
-    return None
-
-
-def _db_persist_attribution(address: str, exchange_name: str, source_key: str,
-                            raw_data: Optional[dict] = None) -> None:
-    """
-    Speichert API-Ergebnis persistent in der Datenbank.
-    So wird jede WalletExplorer/Blockchair-Erkennung dauerhaft verfügbar.
-    """
-    try:
-        conn = _get_db_conn()
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO address_attributions (
-                    address, source_id, entity_name, entity_type,
-                    confidence_level, is_sanctioned, raw_source_data
-                )
-                SELECT %s, s.source_id, %s, 'EXCHANGE', s.confidence_level, FALSE, %s
-                FROM attribution_sources s WHERE s.source_key = %s
-                ON CONFLICT (address, source_id) DO UPDATE SET
-                    entity_name = EXCLUDED.entity_name,
-                    last_updated_at = NOW()
-            """, (address, exchange_name, json.dumps(raw_data) if raw_data else None, source_key))
-        conn.commit()
-        logger.debug(f"DB-PERSIST: {address[:20]} → {exchange_name} (source={source_key})")
-    except Exception as e:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        logger.debug(f"DB persist failed for {address[:20]}: {e}")
 
 OUTPUT_DIR = pathlib.Path.home() / "AIFinancialCrime-Cases" / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -222,6 +184,7 @@ EXCHANGE_COMPLIANCE = {
 }
 
 _attribution_cache: dict[str, dict] = {}
+_spend_resolution_cache: dict[tuple[str, int], tuple[str, Optional[str]]] = {}
 
 
 def _walletexplorer_lookup(address: str) -> Optional[dict]:
@@ -291,193 +254,39 @@ def _chainalysis_check(address: str) -> bool:
 
 
 def _lookup_address_exchange(addr: str, call_counter: list) -> Optional[dict]:
-    """Hilfsfunktion: Prüft einzelne Adresse auf Exchange via Cache → DB → WalletExplorer → Blockchair."""
+    """Hilfsfunktion: aktive Exchange-Erkennung laeuft nur noch ueber den Agenten."""
+    _ = call_counter
     if addr in _attribution_cache:
         cached = _attribution_cache[addr]
         if cached.get("exchange"):
             return cached
         return None
-    # Stufe 0: Lokale DB (kein API-Call-Budget verbraucht)
-    db_result = _db_exchange_lookup(addr)
-    if db_result:
-        _attribution_cache[addr] = {**db_result, "_downstream_checked": True}
-        return db_result
-    # Stufe 1: Exchange Intel Agent (1.76M Adressen, lokal)
+
     intel_result = _exchange_intel_lookup(addr)
     if intel_result:
         _attribution_cache[addr] = {**intel_result, "_downstream_checked": True}
-        _db_persist_attribution(addr, intel_result["exchange"], "EXCHANGE_INTEL",
-                                {"source": intel_result.get("source"), "label": intel_result.get("label")})
         return intel_result
-    if call_counter[0] >= 6:
-        return None
-    call_counter[0] += 1
-    time.sleep(0.15)
-    result = _walletexplorer_lookup(addr)
-    if not result:
-        result = _blockchair_lookup(addr)
-    if result:
-        _attribution_cache[addr] = {**result, "is_sanctioned": False, "_downstream_checked": True}
-        # Persistent speichern
-        if result.get("exchange"):
-            source_key = "WALLETEXPLORER" if result.get("source") == "walletexplorer" else "BLOCKCHAIR"
-            _db_persist_attribution(addr, result["exchange"], source_key,
-                                    {"label": result.get("label"), "wallet_id": result.get("wallet_id")})
-    return result
-
-
-def _downstream_exchange_lookup(address: str) -> Optional[dict]:
-    """
-    Erkennt Exchange-Deposit-Adressen durch Downstream-Analyse (bis 2 Hops).
-
-    Beweiskette Hop 1:
-      Adresse → Sweep-TX → bekannte Exchange-Adresse
-
-    Beweiskette Hop 2 (wenn Hop 1 fehlschlägt):
-      Adresse → Sweep-TX → Zwischen-Adresse → weitere TX → bekannte Exchange-Adresse
-      Typisch für Binance: Deposit → interne Collection-Wallet → Binance Hot Wallet
-
-    Quelle: Direkte On-Chain-Analyse via Blockstream API.
-    Forensische Einordnung: L2 (forensisch belegt, nicht mathematisch beweisbar).
-    """
-    call_counter = [0]
-    try:
-        url = f"https://blockstream.info/api/address/{address}/txs"
-        req = urllib.request.Request(url, headers={"User-Agent": "AIFinancialCrime/2.0"})
-        with urllib.request.urlopen(req, timeout=10) as r:
-            txs = json.loads(r.read())
-
-        # === HOP 1: Direkte Outputs der Spending-TX prüfen ===
-        hop1_intermediate = []  # (out_addr) für Hop-2-Analyse gesammelt
-        for tx in txs[:5]:
-            is_spending = any(
-                vin.get("prevout", {}).get("scriptpubkey_address") == address
-                for vin in tx.get("vin", [])
-            )
-            if not is_spending:
-                continue
-
-            for vout in tx.get("vout", [])[:10]:
-                out_addr = vout.get("scriptpubkey_address")
-                if not out_addr or out_addr == address:
-                    continue
-
-                result = _lookup_address_exchange(out_addr, call_counter)
-                if result and result.get("exchange"):
-                    return {
-                        "exchange": result["exchange"],
-                        "label": f"{result['exchange']} Deposit-Adresse",
-                        "wallet_id": result.get("wallet_id", ""),
-                        "source": "downstream-analysis",
-                        "confidence": "L2",
-                    }
-                hop1_intermediate.append(out_addr)
-
-        # === HOP 2: Outputs der Zwischen-Adressen prüfen ===
-        # Beweiskette: Adresse → TX_A → Zwischen-Adresse → TX_B → Exchange
-        for inter_addr in hop1_intermediate[:4]:
-            if call_counter[0] >= 12:
-                break
-            try:
-                url2 = f"https://blockstream.info/api/address/{inter_addr}/txs"
-                req2 = urllib.request.Request(url2, headers={"User-Agent": "AIFinancialCrime/2.0"})
-                with urllib.request.urlopen(req2, timeout=8) as r2:
-                    txs2 = json.loads(r2.read())
-
-                for tx2 in txs2[:3]:
-                    is_spending2 = any(
-                        vin.get("prevout", {}).get("scriptpubkey_address") == inter_addr
-                        for vin in tx2.get("vin", [])
-                    )
-                    if not is_spending2:
-                        continue
-
-                    for vout2 in tx2.get("vout", [])[:8]:
-                        out_addr2 = vout2.get("scriptpubkey_address")
-                        if not out_addr2 or out_addr2 in (address, inter_addr):
-                            continue
-
-                        result2 = _lookup_address_exchange(out_addr2, call_counter)
-                        if result2 and result2.get("exchange"):
-                            return {
-                                "exchange": result2["exchange"],
-                                "label": f"{result2['exchange']} Deposit-Adresse (2-Hop)",
-                                "wallet_id": result2.get("wallet_id", ""),
-                                "source": "downstream-analysis-2hop",
-                                "confidence": "L2",
-                            }
-            except Exception:
-                continue
-
-    except Exception as e:
-        logger.debug(f"Downstream exchange lookup failed {address[:20]}: {e}")
     return None
 
 
 def _check_address(address: str, use_downstream: bool = True) -> dict:
-    """Prüft Adresse auf Exchange-Attribution und Sanctions. Mit intelligentem Cache.
+    """Prueft Adresse auf Exchange-Attribution ueber den Agenten und auf Sanctions.
 
-    Args:
-        use_downstream: Wenn False, wird NUR WalletExplorer + Blockchair geprüft
-                       (direkte Erkennung). Downstream-Analyse wird übersprungen.
-                       Verwenden im Tracer-Output-Scan, damit Deposit-Adressen
-                       nicht vorzeitig als Exchange markiert werden und die
-                       L1-Kette bis zur tatsächlichen Exchange-Adresse weiterläuft.
-
-    Cache-Logik:
-        - Exchange gefunden → immer cachen (definitives Ergebnis)
-        - Kein Exchange + use_downstream=True → cachen mit _downstream_checked=True
-        - Kein Exchange + use_downstream=False → cachen mit _downstream_checked=False
-        - Späterer Aufruf mit use_downstream=True prüft ob Downstream schon lief:
-          Wenn nicht → erneut prüfen mit Downstream-Analyse
+    `use_downstream` bleibt nur fuer Rueckwaertskompatibilitaet in der Signatur.
+    Die Exchange-Erkennung selbst ist zentral im Agenten gebuendelt.
     """
+    _ = use_downstream
     if address in _attribution_cache:
-        cached = _attribution_cache[address]
-        # Wenn bereits Exchange gefunden → immer zurückgeben
-        if cached.get("exchange"):
-            return cached
-        # Wenn Downstream gewünscht aber noch nicht gelaufen → durchfallen
-        if use_downstream and not cached.get("_downstream_checked"):
-            pass  # Erneut prüfen mit Downstream
-        else:
-            return cached
+        return _attribution_cache[address]
 
     result = {"exchange": None, "is_sanctioned": False, "source": None,
               "label": None, "wallet_id": None, "confidence": "L1"}
-
-    # 0. Lokale DB — Seed-Daten + persistent gespeicherte API-Ergebnisse (KEIN API-Call)
-    attribution = _db_exchange_lookup(address)
-
-    # 1. Exchange Intel Agent — 1.76M Adressen, lokal (KEIN externer API-Call)
-    if not attribution:
-        attribution = _exchange_intel_lookup(address)
-        if attribution and attribution.get("exchange"):
-            _db_persist_attribution(address, attribution["exchange"], "EXCHANGE_INTEL",
-                                    {"source": attribution.get("source"), "label": attribution.get("label")})
-
-    # 2. WalletExplorer (direkte Erkennung)
-    if not attribution:
-        attribution = _walletexplorer_lookup(address)
-        if attribution and attribution.get("exchange"):
-            _db_persist_attribution(address, attribution["exchange"], "WALLETEXPLORER",
-                                    {"label": attribution.get("label"), "wallet_id": attribution.get("wallet_id")})
-    if not attribution:
-        time.sleep(0.2)
-        # 3. Blockchair (API-Key erforderlich)
-        attribution = _blockchair_lookup(address)
-        if attribution and attribution.get("exchange"):
-            _db_persist_attribution(address, attribution["exchange"], "BLOCKCHAIR",
-                                    {"label": attribution.get("label")})
-    if not attribution and use_downstream:
-        time.sleep(0.3)
-        # 3. Downstream-Analyse: Spending-TX auf bekannte Exchange prüfen
-        #    Beweiskette: Adresse → Sweep-TX → bekannte Exchange-Adresse (L2)
-        attribution = _downstream_exchange_lookup(address)
+    attribution = _exchange_intel_lookup(address)
     if attribution:
         result.update(attribution)
 
     result["is_sanctioned"] = _chainalysis_check(address)
-    result["_downstream_checked"] = use_downstream
+    result["_downstream_checked"] = True
     _attribution_cache[address] = result
     return result
 
@@ -485,7 +294,7 @@ def _check_address(address: str, use_downstream: bool = True) -> dict:
 def _apply_manual_attributions(manual_attributions: dict[str, str]) -> None:
     """Schreibt manuelle Exchange-Attributionen in den Cache (höchste Priorität)."""
     for address, exchange_name in manual_attributions.items():
-        canonical = next((v for k, v in KNOWN_EXCHANGES.items() if k in exchange_name.lower()), exchange_name)
+        canonical = _canonical_exchange_name(exchange_name)
         compliance_email = EXCHANGE_COMPLIANCE.get(canonical, "")
         _attribution_cache[address] = {
             "exchange": canonical,
@@ -568,28 +377,99 @@ def _get_tx_block_info(tx_data: dict) -> tuple[int, str]:
     return block_height, "—"
 
 
-def _get_spending_txid(txid: str, vout_idx: int, rpc) -> Optional[str]:
-    """Findet die TX die einen bestimmten Output ausgibt."""
-    # Via RPC: gettxout = None bedeutet ausgegeben
+def _scan_blocks_for_spend(txid: str, vout_idx: int, spend_block_hint: int, rpc) -> Optional[str]:
+    """Fallback ohne externen Spend-Index: scannt Folgeblöcke nach dem ausgebenden Input."""
+    max_blocks = int(os.environ.get("TRACER_SPEND_SCAN_MAX_BLOCKS", "4000"))
+    if spend_block_hint <= 0 or max_blocks <= 0:
+        return None
+
+    try:
+        tip_height = int(rpc.call("getblockcount", []))
+    except Exception as e:
+        logger.debug(f"blockcount lookup failed for spend-scan {txid[:16]}:{vout_idx}: {e}")
+        return None
+
+    end_height = min(tip_height, spend_block_hint + max_blocks)
+    for height in range(spend_block_hint + 1, end_height + 1):
+        try:
+            block_hash = rpc.call("getblockhash", [height])
+            block = rpc.call("getblock", [block_hash, 2])
+        except Exception as e:
+            logger.debug(f"block scan failed height={height} for {txid[:16]}:{vout_idx}: {e}")
+            continue
+
+        for candidate_tx in block.get("tx", []):
+            for vin in candidate_tx.get("vin", []):
+                if vin.get("txid") == txid and vin.get("vout") == vout_idx:
+                    return candidate_tx.get("txid")
+
+    return None
+
+
+def _get_spending_info(txid: str, vout_idx: int, rpc) -> tuple[str, Optional[str]]:
+    """Findet die ausgebende TX oder liefert einen sauberen Spend-Status.
+
+    Rueckgabe:
+    - ("unspent", None)
+    - ("spent", "<spending_txid>")
+    - ("spent_unresolved", None)
+    - ("unknown", None)
+    """
+    cache_key = (txid, vout_idx)
+    if cache_key in _spend_resolution_cache:
+        return _spend_resolution_cache[cache_key]
+
+    rpc_confirms_spent = False
+    spend_block_hint = 0
+
     try:
         utxo = rpc.call("gettxout", [txid, vout_idx])
         if utxo is not None:
-            return None  # Noch unspent
-    except Exception:
-        pass
+            result = ("unspent", None)
+            _spend_resolution_cache[cache_key] = result
+            return result
+        rpc_confirms_spent = True
+    except Exception as e:
+        logger.debug(f"gettxout failed {txid[:16]}:{vout_idx}: {e}")
 
-    # Via Blockstream: outspend endpoint
+    try:
+        tx_data = rpc.call("getrawtransaction", [txid, True])
+        spend_block_hint = int(tx_data.get("blockheight") or tx_data.get("status", {}).get("block_height") or 0)
+    except Exception as e:
+        logger.debug(f"getrawtransaction failed for spend-hint {txid[:16]}:{vout_idx}: {e}")
+
+    # Schneller externer Pfad falls erreichbar
     try:
         url = f"https://blockstream.info/api/tx/{txid}/outspend/{vout_idx}"
         req = urllib.request.Request(url, headers={"User-Agent": "AIFinancialCrime/2.0"})
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(r.read())
         if data.get("spent"):
-            return data.get("txid")
+            result = ("spent", data.get("txid"))
+            _spend_resolution_cache[cache_key] = result
+            return result
+        if data.get("spent") is False:
+            result = ("unspent", None)
+            _spend_resolution_cache[cache_key] = result
+            return result
     except Exception as e:
         logger.debug(f"outspend lookup failed {txid[:16]}:{vout_idx}: {e}")
 
-    return None
+    # Lokaler Fallback: Blockscan vorwaerts
+    spending_txid = _scan_blocks_for_spend(txid, vout_idx, spend_block_hint, rpc)
+    if spending_txid:
+        result = ("spent", spending_txid)
+        _spend_resolution_cache[cache_key] = result
+        return result
+
+    if rpc_confirms_spent:
+        result = ("spent_unresolved", None)
+        _spend_resolution_cache[cache_key] = result
+        return result
+
+    result = ("unknown", None)
+    _spend_resolution_cache[cache_key] = result
+    return result
 
 
 def _get_victim_amount_from_inputs(fraud_tx: dict, victim_addresses: set, rpc) -> float:
@@ -731,7 +611,7 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
         # NIEMALS abbrechen — wir wollen den L1-Hop zur ersten Weiterleitung immer sehen.
         is_initial_step = (current_address == recipient_address and current_txid == fraud_txid)
         cached_attr = _attribution_cache.get(current_address, {})
-        if cached_attr.get("exchange") and not is_initial_step:
+        if _is_acam_burdenable_attribution(cached_attr) and not is_initial_step:
             logger.info(f"  TRACER: EARLY EXIT — {current_address[:20]} im Cache als {cached_attr.get('exchange')}")
             # Vorherigen Hop als Exchange-Einzahlung aktualisieren falls vorhanden
             if hops:
@@ -750,12 +630,15 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
             continue  # Exchange erkannt → nicht weiter tracen
 
         # Spending TX finden
-        spending_txid = _get_spending_txid(current_txid, vout_idx, rpc)
-        logger.info(f"  TRACER: spending_txid={spending_txid[:16] if spending_txid else 'None'} für {current_txid[:16]}:{vout_idx}")
-        if not spending_txid:
+        spend_state, spending_txid = _get_spending_info(current_txid, vout_idx, rpc)
+        logger.info(
+            f"  TRACER: spend_state={spend_state}, spending_txid={spending_txid[:16] if spending_txid else 'None'} "
+            f"für {current_txid[:16]}:{vout_idx}"
+        )
+        if spend_state == "unspent":
             # UTXO noch nicht ausgegeben — Exchange-Check der Adresse selbst
             check = _check_address(current_address)
-            if check.get("exchange") and hops:
+            if _is_acam_burdenable_attribution(check) and hops:
                 for hop in reversed(hops):
                     if any(a == current_address for a, _ in hop.get("to_addresses", [])):
                         hop["confidence"] = "L2"
@@ -764,7 +647,7 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
                         hop["exchange_wallet_id"] = check.get("wallet_id", "")
                         hop["exchange_source"] = check.get("source", "")
                         hop["label"] = f"Exchange-Einzahlung -> {check['exchange']}"
-                        hop["method"] = f"WalletExplorer Attribution ({check.get('label', '')})"
+                        hop["method"] = f"Exchange Intel Agent Attribution ({check.get('label', '')})"
                         hop["notes"] += f" Adresse als {check['exchange']} identifiziert."
                         hop["chain_end_reason"] = "exchange"
                         break
@@ -779,6 +662,44 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
                                 f"(Stand: Analyse-Zeitpunkt). Mittel möglicherweise noch verfügbar."
                             )
                             break
+            continue
+        if spend_state in {"spent_unresolved", "unknown"}:
+            resolution_note = (
+                " Der Output ist nachweislich weiterverwendet, aber die ausgebende TX konnte "
+                "mit der aktuellen Spend-Aufloesung nicht eindeutig geladen werden."
+                if spend_state == "spent_unresolved"
+                else
+                " Die Spend-Aufloesung war technisch unvollstaendig; der naechste Hop konnte nicht "
+                "zuverlaessig ermittelt werden."
+            )
+            if hops:
+                for hop in reversed(hops):
+                    if any(a == current_address for a, _ in hop.get("to_addresses", [])):
+                        hop["chain_end_reason"] = "lookup_incomplete"
+                        hop["notes"] += resolution_note
+                        break
+            else:
+                block_height, ts_str = _get_tx_block_info(current_tx)
+                hops.append({
+                    "hop": hop_idx,
+                    "label": "Weiterleitung technisch nicht vollstaendig aufgeloest",
+                    "txid": current_txid,
+                    "block": block_height or 0,
+                    "timestamp": ts_str,
+                    "from_addresses": [(current_address, actual_from_amount)],
+                    "to_addresses": [(current_address, actual_from_amount)],
+                    "fee_btc": None,
+                    "confidence": "L1",
+                    "confidence_label": "Mathematisch bewiesen",
+                    "method": "Direkter UTXO-Link bis Empfaenger; Spend-Aufloesung unvollstaendig",
+                    "notes": (
+                        "Der Eingang auf diese Adresse ist on-chain bewiesen."
+                        + resolution_note
+                        + " Der Bericht ist an dieser Stelle technisch unvollstaendig und darf nicht als unspent gelesen werden."
+                    ),
+                    "is_sanctioned": False,
+                    "chain_end_reason": "lookup_incomplete",
+                })
             continue
 
         if spending_txid in visited_spending_txids:
@@ -804,11 +725,10 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
         for addr, _ in to_outputs:
             if addr == current_address:
                 continue  # Change-Output: niemals als Exchange behandeln
-            # NUR direkte Erkennung (WalletExplorer/Blockchair) — KEINE Downstream-Analyse.
-            # So werden Deposit-Adressen nicht vorzeitig als Exchange markiert und
-            # die L1-Kette läuft bis zur tatsächlichen Exchange-Adresse weiter.
+            # Exchange-Erkennung ist zentral im Agenten gebuendelt.
+            # Hier wird bewusst keine lokale Downstream-Heuristik mehr benutzt.
             check = _check_address(addr, use_downstream=False)
-            if check.get("exchange"):
+            if _is_acam_burdenable_attribution(check):
                 exchange_hits[addr] = check
             if check.get("is_sanctioned"):
                 sanctioned = True
@@ -853,7 +773,7 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
             ex_names = ", ".join(set(c["exchange"] for c in exchange_hits.values()))
             label = f"Exchange-Einzahlung -> {ex_names}"
             first_ex = next(iter(exchange_hits.values()))
-            method = f"WalletExplorer Attribution ({first_ex.get('label', '')})"
+            method = f"Exchange Intel Agent Attribution ({first_ex.get('label', '')})"
             notes = f"Gestohlene Mittel fliessen zu {ex_names}. Identifiziert via {first_ex['source']}."
             confidence = "L2"
         elif pooling_detected:
@@ -950,25 +870,37 @@ def _build_exchanges(all_hops: list) -> list:
     entries = []
 
     source_notes = {
-        "walletexplorer": (
-            "Adresse wurde durch WalletExplorer Wallet-Cluster-Analyse "
-            "der Exchange zugeordnet."
+        "exchange-intel/wallet_label": (
+            "Adresse wurde ueber den BTC Exchange Intel Agent aus einer "
+            "externen Wallet-Label-Quelle einer Exchange zugeordnet."
         ),
-        "blockchair": (
-            "Adresse wurde durch Blockchair Blockchain-Intelligence-Datenbank "
-            "als Exchange-Adresse identifiziert."
+        "exchange-intel/seed": (
+            "Adresse wurde ueber den lokalen BTC Exchange Intel Agent "
+            "als kuratierter Exchange-Seed identifiziert."
         ),
-        "downstream-analysis": (
-            "Adresse wurde als Exchange-Deposit-Adresse identifiziert: "
-            "Die Spending-TX dieser Adresse leitet Mittel nachweislich an eine "
-            "durch WalletExplorer/Blockchair bestätigte Exchange-Adresse weiter "
-            "(On-Chain Downstream-Analyse, 1-Hop)."
+        "exchange-intel/official_por": (
+            "Adresse wurde ueber den lokalen BTC Exchange Intel Agent "
+            "aus einem offiziellen Proof-of-Reserves-Datensatz identifiziert."
         ),
-        "downstream-analysis-2hop": (
-            "Adresse wurde als Exchange-Deposit-Adresse identifiziert: "
-            "Die Mittel fliessen über eine Zwischen-Adresse nachweislich zu einer "
-            "durch WalletExplorer/Blockchair bestätigten Exchange-Adresse "
-            "(On-Chain Downstream-Analyse, 2-Hop)."
+        "exchange-intel/public_dataset": (
+            "Adresse wurde ueber den BTC Exchange Intel Agent aus einem "
+            "oeffentlichen Adressdatensatz identifiziert."
+        ),
+        "exchange-intel/public_tagpack": (
+            "Adresse wurde ueber den BTC Exchange Intel Agent aus einem "
+            "oeffentlichen TagPack identifiziert."
+        ),
+        "exchange-intel/community_label": (
+            "Adresse wurde ueber den BTC Exchange Intel Agent aus einer "
+            "oeffentlichen Community-Quelle identifiziert."
+        ),
+        "exchange-intel/address_lookup": (
+            "Adresse wurde ueber den BTC Exchange Intel Agent per Live-Adressauflösung "
+            "aus einer externen Quelle identifiziert."
+        ),
+        "local-db/EXCHANGE_INTEL": (
+            "Adresse wurde lokal aus einem zuvor verifizierten Treffer des "
+            "BTC Exchange Intel Agent geladen."
         ),
         "manual": (
             "Exchange-Zuordnung wurde manuell durch den forensischen Analysten "
@@ -1159,16 +1091,21 @@ async def generate_report(req: ReportRequest):
             if actual_amount > 0:
                 req.fraud_amount_btc = f"{actual_amount:.8f}"
 
-        # 4. Alle Outputs der Fraud-TX auf Exchange prüfen
-        # WICHTIG: recipient_address NICHT hier prüfen — wird im Tracer separat behandelt.
-        # Sonst landet sie im Cache als Exchange und der Tracer bricht sofort ab.
+        # 4. Direkte Exchange-Treffer auf Fraud-TX prüfen
+        # Empfaengeradresse nur DIREKT pruefen (ohne Downstream), damit echte
+        # Seed-/PoR-/Wallet-Treffer sauber als Chain-Ende erkannt werden, ohne
+        # die frueheren Downstream-Falschpositiven wieder einzufuehren.
+        recipient_exchange = _check_address(req.recipient_address, use_downstream=False)
+        if not _is_acam_burdenable_attribution(recipient_exchange):
+            recipient_exchange = None
+
         direct_exchanges = {}
         fraud_tx_outputs = _get_tx_outputs(fraud_tx)
         for addr, btc in fraud_tx_outputs:
             if addr == req.recipient_address:
-                continue  # Täter-Adresse: Exchange-Prüfung erfolgt im Tracer
+                continue
             check = _check_address(addr)
-            if check.get("exchange"):
+            if _is_acam_burdenable_attribution(check):
                 direct_exchanges[addr] = {**check, "btc": btc}
 
         # 5. Hop 0 bauen
@@ -1203,12 +1140,25 @@ async def generate_report(req: ReportRequest):
             if addr != req.recipient_address:
                 to_addresses_hop0.append((addr, info["btc"]))
 
-        hop0_has_exchange = bool(direct_exchanges)
-        hop0_exchange = next(iter(direct_exchanges.values())) if direct_exchanges else None
+        recipient_exchange_info = None
+        if recipient_exchange:
+            recipient_exchange_info = {
+                **recipient_exchange,
+                "btc": recipient_output_btc if recipient_output_btc > 0 else float(req.fraud_amount_btc or 0),
+            }
+
+        hop0_has_exchange = bool(direct_exchanges or recipient_exchange_info)
+        hop0_exchange = recipient_exchange_info or (next(iter(direct_exchanges.values())) if direct_exchanges else None)
 
         hop0_notes = (f"{len(req.victim_addresses)} Opfer-Adresse(n). "
                       f"Gestohlener Betrag: {req.fraud_amount_btc} BTC.")
-        if hop0_has_exchange:
+        if recipient_exchange_info:
+            hop0_notes += (
+                f" Empfaenger-Adresse direkt als Exchange erkannt: {recipient_exchange_info['exchange']}. "
+                "Nachgelagerte Knoten werden weiterhin informativ ausgewiesen, "
+                "ohne die belastbare Exchange-Zuordnung an diesem Punkt zu relativieren."
+            )
+        elif hop0_has_exchange:
             ex_names = ", ".join(set(v["exchange"] for v in direct_exchanges.values()))
             hop0_notes += f" Direkte Exchange-Outputs erkannt: {ex_names}."
 
@@ -1223,9 +1173,14 @@ async def generate_report(req: ReportRequest):
             "fee_btc": None,
             "confidence": "L2" if hop0_has_exchange else "L1",
             "confidence_label": "Forensisch belegt" if hop0_has_exchange else "Mathematisch bewiesen",
-            "method": f"WalletExplorer Attribution ({hop0_exchange.get('label', '')})" if hop0_exchange else "Direkter UTXO-Link",
+            "method": (
+                f"Direkte Exchange-Attribution ({hop0_exchange.get('label', '')})"
+                if hop0_exchange
+                else "Direkter UTXO-Link"
+            ),
             "notes": hop0_notes,
             "is_sanctioned": any(c.get("is_sanctioned") for c in _attribution_cache.values()),
+            "chain_end_reason": None,
         }
         if hop0_exchange:
             hop0["exchange"] = hop0_exchange["exchange"]
@@ -1234,6 +1189,8 @@ async def generate_report(req: ReportRequest):
 
         # 6. Chain nur ab Empfänger verfolgen (fokussiert, kein Branching)
         hops = _trace_victim_chain(req.fraud_txid, req.recipient_address, rpc, conn)
+        if recipient_exchange_info and not hops:
+            hop0["chain_end_reason"] = "exchange"
         conn.close()
 
         # 7. Exchanges aus allen Hops

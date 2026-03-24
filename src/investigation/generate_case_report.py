@@ -236,9 +236,9 @@ def _methodology(styles):
         ["L1", "Mathematisch bewiesen",
          "Direkter UTXO-Link — kryptographisch unwiderlegbar"],
         ["L2", "Forensisch belegt",
-         "Betragsübereinstimmung + Exchange-Attribution (WalletExplorer)"],
+         "Direkte Exchange-Attribution aus validierter Quelle (z. B. offizieller Seed, lokaler Intel-Agent, WalletExplorer)"],
         ["L3", "Hinweis (nicht beweiskräftig)",
-         "Muster erkennbar, zeitlicher Zusammenhang — nicht im Report"],
+         "Downstream-, Muster- oder Kontext-Hinweis — nicht belastend und nicht im Report"],
         ["L4", "Spekulativ",
          "Heuristisch, keine direkte Verbindung — nicht im Report"],
     ]
@@ -604,6 +604,14 @@ def _chain_of_custody(styles):
                     "(Stand: Analysezeitpunkt). Die Kette endet hier natürlich. "
                     "Ein direktes Freeze-Request an Behörden ist empfohlen."
                 ),
+                "lookup_incomplete": (
+                    colors.HexColor("#7D6608"),
+                    "⬛  KETTENENDE — Weiterleitung technisch nicht vollstaendig aufgeloest",
+                    "Die Mittel wurden nicht als unspent klassifiziert. "
+                    "Vielmehr war die Spend-Aufloesung mit der aktuellen Infrastruktur unvollstaendig, "
+                    "sodass der naechste Hop nicht belastbar bestimmt werden konnte. "
+                    "Der Bericht ist an dieser Stelle unvollstaendig und darf nicht als Endpunktbewertung gelesen werden."
+                ),
             }
             if chain_end in end_texts:
                 bg_col, title_str, body_str = end_texts[chain_end]
@@ -640,7 +648,7 @@ def _integrity(report_hash, styles):
         ["SHA-256 Prüfsumme", Paragraph(report_hash, styles["mono"])],
         ["Generiert am", CASE["generated_at"]],
         ["System", "AIFinancialCrime Forensik-System v1.0"],
-        ["Datenquelle", "Blockstream.info API + WalletExplorer.com"],
+        ["Datenquelle", "Bitcoin-Node/Blockstream + BTC Exchange Intel Agent"],
     ]
     tbl = Table(rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
     tbl.setStyle(TableStyle([
@@ -773,7 +781,7 @@ def _freeze_request(exchange_data, styles, output_path):
         ["Bitcoin-Adresse", exchange_data["address"]],
         ["Attribution", exchange_data["label"]],
         ["Wallet-ID", exchange_data["wallet_id"]],
-        ["Confidence", f"{exchange_data['confidence']} — Forensisch belegt (WalletExplorer)"],
+        ["Confidence", f"{exchange_data['confidence']} — Forensisch belegt (validierte Quelle)"],
         ["BTC betroffen", f"{exchange_data['btc_involved']:.8f} BTC"],
     ]
     addr_tbl = Table(addr_rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
