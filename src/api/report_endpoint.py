@@ -102,14 +102,30 @@ def _exchange_intel_lookup(address: str) -> Optional[dict]:
     if not base_url:
         return None
     api_key = os.environ.get("EXCHANGE_INTEL_API_KEY", "")
+    candidate_bases = [base_url]
+    if "://localhost" in base_url:
+        candidate_bases.append(base_url.replace("://localhost", "://127.0.0.1"))
+
     try:
-        url = f"{base_url}/v1/address/{address}?live_resolve=true"
         headers = {"User-Agent": "AIFinancialCrime/2.0"}
         if api_key:
             headers["X-API-Key"] = api_key
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=5) as r:
-            data = json.loads(r.read())
+
+        data = None
+        last_error = None
+        for candidate_base in candidate_bases:
+            url = f"{candidate_base}/v1/address/{address}?live_resolve=true"
+            req = urllib.request.Request(url, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    data = json.loads(r.read())
+                break
+            except Exception as inner_exc:
+                last_error = inner_exc
+                continue
+
+        if data is None:
+            raise last_error or RuntimeError("exchange intel unavailable")
         if not data.get("found"):
             return None
         source_type = data.get("best_source_type", "exchange_intel")
@@ -508,6 +524,7 @@ def _save_tx_to_db(txid: str, tx_data: dict, conn):
     """Speichert TX in PostgreSQL."""
     try:
         block_height, _ = _get_tx_block_info(tx_data)
+        block_hash = tx_data.get("blockhash")
         block_time = tx_data.get("blocktime") or tx_data.get("status", {}).get("block_time")
         first_seen = datetime.fromtimestamp(block_time, tz=timezone.utc) if block_time else None
 
@@ -517,6 +534,15 @@ def _save_tx_to_db(txid: str, tx_data: dict, conn):
                 return
 
         with conn.cursor() as cur:
+            if block_height and block_hash and first_seen:
+                cur.execute(
+                    """
+                    INSERT INTO blocks (height, hash, timestamp)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (height) DO NOTHING
+                    """,
+                    (block_height, block_hash, first_seen),
+                )
             cur.execute("""
                 INSERT INTO transactions (txid, block_height, first_seen)
                 VALUES (%s, %s, %s) ON CONFLICT (txid) DO NOTHING
@@ -527,6 +553,14 @@ def _save_tx_to_db(txid: str, tx_data: dict, conn):
                 val = vout.get("value", 0)
                 sats = int(val * 1e8) if isinstance(val, float) else int(val)
                 if addr:
+                    cur.execute(
+                        """
+                        INSERT INTO addresses (address)
+                        VALUES (%s)
+                        ON CONFLICT (address) DO NOTHING
+                        """,
+                        (addr,),
+                    )
                     cur.execute("""
                         INSERT INTO tx_outputs (txid, vout_index, address, amount_sats)
                         VALUES (%s, %s, %s, %s) ON CONFLICT (txid, vout_index) DO NOTHING
