@@ -203,55 +203,6 @@ _attribution_cache: dict[str, dict] = {}
 _spend_resolution_cache: dict[tuple[str, int], tuple[str, Optional[str]]] = {}
 
 
-def _walletexplorer_lookup(address: str) -> Optional[dict]:
-    try:
-        url = (f"https://www.walletexplorer.com/api/1/address"
-               f"?address={address}&from=0&count=1&caller=AIFinancialCrime")
-        req = urllib.request.Request(url, headers={"User-Agent": "AIFinancialCrime/2.0"})
-        with urllib.request.urlopen(req, timeout=8) as r:
-            data = json.loads(r.read())
-        if not data.get("found") or not data.get("label"):
-            return None
-        label_raw = data["label"]
-        exchange_name = next(
-            (name for key, name in KNOWN_EXCHANGES.items() if key in label_raw.lower()),
-            label_raw
-        )
-        return {
-            "exchange": exchange_name,
-            "label": label_raw,
-            "wallet_id": data.get("wallet_id", ""),
-            "source": "walletexplorer",
-            "confidence": "L2",
-        }
-    except Exception as e:
-        logger.debug(f"WalletExplorer failed {address[:20]}: {e}")
-        return None
-
-
-def _blockchair_lookup(address: str) -> Optional[dict]:
-    api_key = os.environ.get("BLOCKCHAIR_API_KEY")
-    if not api_key:
-        return None
-    try:
-        url = f"https://api.blockchair.com/bitcoin/dashboards/address/{address}?key={api_key}"
-        req = urllib.request.Request(url, headers={"User-Agent": "AIFinancialCrime/2.0"})
-        with urllib.request.urlopen(req, timeout=8) as r:
-            data = json.loads(r.read())
-        addr_data = data.get("data", {}).get(address, {}).get("address", {})
-        tag = addr_data.get("tag")
-        if not tag:
-            return None
-        exchange_name = next(
-            (name for key, name in KNOWN_EXCHANGES.items() if key in tag.lower()),
-            tag
-        )
-        return {"exchange": exchange_name, "label": tag, "wallet_id": "", "source": "blockchair", "confidence": "L2"}
-    except Exception as e:
-        logger.debug(f"Blockchair failed {address[:20]}: {e}")
-        return None
-
-
 def _chainalysis_check(address: str) -> bool:
     api_key = os.environ.get("CHAINALYSIS_API_KEY")
     if not api_key:
@@ -268,21 +219,6 @@ def _chainalysis_check(address: str) -> bool:
     except Exception:
         return False
 
-
-def _lookup_address_exchange(addr: str, call_counter: list) -> Optional[dict]:
-    """Hilfsfunktion: aktive Exchange-Erkennung laeuft nur noch ueber den Agenten."""
-    _ = call_counter
-    if addr in _attribution_cache:
-        cached = _attribution_cache[addr]
-        if cached.get("exchange"):
-            return cached
-        return None
-
-    intel_result = _exchange_intel_lookup(addr)
-    if intel_result:
-        _attribution_cache[addr] = {**intel_result, "_downstream_checked": True}
-        return intel_result
-    return None
 
 
 def _check_address(address: str, use_downstream: bool = True) -> dict:
