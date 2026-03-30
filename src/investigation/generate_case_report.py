@@ -1037,64 +1037,90 @@ def generate_all():
     print(f"   SHA-256: {report_hash}")
 
 
-if __name__ == "__main__":
-    import argparse, json, pathlib
+def _wallet_type_from_intake(incident: dict) -> str:
+    wallet_brand = str(incident.get("wallet_brand", "") or "").strip()
+    wallet_type = str(incident.get("wallet_type", "") or "").strip()
+    if wallet_brand and wallet_type:
+        return f"{wallet_brand} ({wallet_type})"
+    return wallet_brand or wallet_type or "—"
+
+
+def _load_case_from_file(case_id: str) -> None:
+    import json
+    import pathlib
+
+    cases_dir = pathlib.Path.home() / "AIFinancialCrime-Cases"
+    case_file = cases_dir / "cases" / f"{case_id}.json"
+    if not case_file.exists():
+        raise FileNotFoundError(str(case_file))
+
+    with open(case_file, encoding="utf-8") as f:
+        intake = json.load(f)
+
+    victim = intake.get("victim", {})
+    incident = intake.get("incident", {})
+    blockchain = intake.get("blockchain", {})
+
+    CASE["case_id"] = intake.get("case_id", case_id)
+    CASE["victim_name"] = victim.get("name", "")
+    CASE["victim_contact"] = victim.get("email", "")
+    CASE["incident_date"] = incident.get("date", "")
+    CASE["discovery_date"] = incident.get("discovery_date", "")
+    CASE["fraud_amount"] = blockchain.get("fraud_amount_btc", "")
+    CASE["fraud_amount_eur"] = blockchain.get("fraud_amount_eur", "") or ""
+    CASE["wallet_type"] = _wallet_type_from_intake(incident)
+    CASE["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    if HOPS:
+        if blockchain.get("victim_addresses"):
+            HOPS[0]["from_addresses"] = [(address, None) for address in blockchain["victim_addresses"]]
+        if blockchain.get("recipient_address"):
+            HOPS[0]["to_addresses"] = [(
+                blockchain["recipient_address"],
+                float(blockchain.get("fraud_amount_btc") or 0),
+            )]
+        if blockchain.get("fraud_txid"):
+            HOPS[0]["txid"] = blockchain["fraud_txid"]
+        HOPS[0]["timestamp"] = incident.get("date", "")
+
+    print(f"✅ Fallakte geladen: {case_file}")
+    print(f"   Geschädigter: {CASE['victim_name']}")
+    print(f"   Betrag:       {CASE['fraud_amount']} BTC")
+    print(f"   TX-ID:        {str(blockchain.get('fraud_txid', '?'))[:32]}...")
+
+    fraud_txid = blockchain.get("fraud_txid")
+    if fraud_txid:
+        print("Lade Hops aus PostgreSQL-DB...")
+        db_hops = load_hops_from_db(fraud_txid)
+        if db_hops:
+            HOPS[1:] = db_hops
+            print(f"   {len(db_hops)} Hops aus DB geladen.")
+        else:
+            print("   Keine Hops in DB — nutze vorhandene Hops.")
+
+
+def cli(argv: list[str] | None = None) -> int:
+    import argparse
 
     parser = argparse.ArgumentParser(description="AIFinancialCrime Report Generator")
-    parser.add_argument("--case", metavar="ID",
-                        help="Fall-ID — lädt cases/<ID>.json und generiert Report")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--case",
+        metavar="ID",
+        help="Fall-ID — lädt cases/<ID>.json und generiert Report",
+    )
+    args = parser.parse_args(argv)
 
     if args.case:
-        CASES_DIR = pathlib.Path.home() / "AIFinancialCrime-Cases"
-        case_file = CASES_DIR / "cases" / f"{args.case}.json"
-        if not case_file.exists():
-            print(f"❌ Fallakte nicht gefunden: {case_file}")
+        try:
+            _load_case_from_file(args.case)
+        except FileNotFoundError as exc:
+            print(f"❌ Fallakte nicht gefunden: {exc}")
             print(f"   Bitte Fallakte in ~/AIFinancialCrime-Cases/cases/ ablegen.")
-            exit(1)
-
-        with open(case_file, encoding="utf-8") as f:
-            intake = json.load(f)
-
-        # Überschreibe CASE mit Intake-Daten
-        v = intake.get("victim", {})
-        inc = intake.get("incident", {})
-        bc = intake.get("blockchain", {})
-
-        CASE["case_id"]           = intake.get("case_id", args.case)
-        CASE["victim_name"]       = v.get("name", "")
-        CASE["victim_contact"]    = v.get("email", "")
-        CASE["incident_date"]     = inc.get("date", "")
-        CASE["discovery_date"]    = inc.get("discovery_date", "")
-        CASE["fraud_amount"]      = bc.get("fraud_amount_btc", "")
-        CASE["fraud_amount_eur"]  = bc.get("fraud_amount_eur", "—") or "—"
-        CASE["wallet_type"]       = f"{inc.get('wallet_brand','')} ({inc.get('wallet_type','')})"
-        CASE["generated_at"]      = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-        # Hop 0 mit Intake-Daten befüllen
-        if bc.get("victim_addresses"):
-            HOPS[0]["from_addresses"] = [(a, None) for a in bc["victim_addresses"]]
-        if bc.get("recipient_address"):
-            HOPS[0]["to_addresses"] = [(bc["recipient_address"],
-                                        float(bc.get("fraud_amount_btc") or 0))]
-        if bc.get("fraud_txid"):
-            HOPS[0]["txid"] = bc["fraud_txid"]
-        HOPS[0]["timestamp"] = inc.get("date", "") + " UTC"
-
-        print(f"✅ Fallakte geladen: {case_file}")
-        print(f"   Geschädigter: {CASE['victim_name']}")
-        print(f"   Betrag:       {CASE['fraud_amount']} BTC")
-        print(f"   TX-ID:        {bc.get('fraud_txid','?')[:32]}...")
-
-        # Hops automatisch aus DB laden
-        fraud_txid_val = bc.get("fraud_txid")
-        if fraud_txid_val:
-            print("Lade Hops aus PostgreSQL-DB...")
-            db_hops = load_hops_from_db(fraud_txid_val)
-            if db_hops:
-                HOPS[1:] = db_hops
-                print(f"   {len(db_hops)} Hops aus DB geladen.")
-            else:
-                print("   Keine Hops in DB — nutze hardcoded Hops.")
+            return 1
 
     generate_all()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())

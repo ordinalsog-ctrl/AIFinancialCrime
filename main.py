@@ -6,13 +6,11 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 import psycopg2
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from src.api.report_endpoint import router_report
-from src.api.cases import router as cases_router
 from src.api.health import router as health_router
 
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_DSN")
@@ -51,7 +49,6 @@ app.add_middleware(
 
 # API Routers
 app.include_router(router_report, prefix="/api")
-app.include_router(cases_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 
 # Frontend
