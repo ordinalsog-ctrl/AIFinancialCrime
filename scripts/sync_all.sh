@@ -44,7 +44,6 @@ cp_file "visualizer.py"          "src/investigation/visualizer.py"
 cp_file "cio_engine.py"          "src/investigation/cio_engine.py"
 cp_file "serial_actor.py"        "src/investigation/serial_actor.py"
 cp_file "exchange_contacts.py"   "src/investigation/exchange_contacts.py"
-cp_file "cases.py"               "src/investigation/cases.py"
 cp_file "adapters.py"            "src/investigation/adapters.py"
 cp_file "adapters_v2.py"         "src/investigation/adapters_v2.py"
 
