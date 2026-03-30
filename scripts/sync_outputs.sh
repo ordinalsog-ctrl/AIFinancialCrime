@@ -59,16 +59,10 @@ copy_file "alerts.yml"         "monitoring/alerts.yml"
 
 echo ""
 echo "=== Session 3 — Forensik: Graph + Change + Temporal ==="
-copy_file "graph_engine.py"      "src/investigation/graph_engine.py"
-copy_file "change_heuristics.py" "src/investigation/change_heuristics.py"
-copy_file "temporal_engine.py"   "src/investigation/temporal_engine.py"
 
 echo ""
-echo "=== Session 2 — Serial Actor + Report v3 + Pipeline v2 ==="
+echo "=== Session 2 — Report v3 ==="
 copy_file "006_cases.sql"          "sql/006_cases.sql"
-copy_file "007_serial_actors.sql"  "sql/007_serial_actors.sql"
-copy_file "exchange_contacts.py"   "src/investigation/exchange_contacts.py"
-copy_file "serial_actor.py"        "src/investigation/serial_actor.py"
 copy_file "setup_pi.sh"            "scripts/setup_pi.sh"
 copy_file "system_update.sh"       "scripts/system_update.sh"
 
