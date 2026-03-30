@@ -47,7 +47,6 @@ copy_file "HANDOVER.md" "HANDOVER.md"
 echo ""
 echo "=== Session 3 — Core: Logging + Metrics ==="
 copy_file "logging_config.py"  "src/core/logging_config.py"
-copy_file "metrics.py"         "src/core/metrics.py"
 
 echo ""
 echo "=== Session 3 — API: Health Endpoints ==="
