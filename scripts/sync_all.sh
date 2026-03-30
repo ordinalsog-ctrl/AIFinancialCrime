@@ -33,13 +33,9 @@ cp_file "006_cases.sql"          "sql/006_cases.sql"
 
 echo ""
 echo "=== Session 1 — Core Investigation Modules ==="
-cp_file "confidence_engine.py"   "src/investigation/confidence_engine.py"
-cp_file "attribution_db.py"      "src/investigation/attribution_db.py"
 
 echo ""
 echo "=== Tests ==="
-cp_file "e2e_test.py"            "tests/e2e_test.py"
-cp_file "test_confidence_engine.py" "tests/test_confidence_engine.py"
 
 echo ""
 echo "=== Scripts ==="

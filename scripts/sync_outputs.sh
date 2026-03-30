@@ -72,8 +72,6 @@ overwrite_file "main.py" "main.py"
 
 echo ""
 echo "=== Session 1 — Core Investigation Modules ==="
-copy_file "confidence_engine.py" "src/investigation/confidence_engine.py"
-copy_file "attribution_db.py"    "src/investigation/attribution_db.py"
 
 echo ""
 echo "=== SQL Migrations (001_init.sql wird NICHT überschrieben) ==="
