@@ -459,7 +459,7 @@ let currentGraphModel = null;
 let selectedInputs = new Set();
 let recipientAddr = '';
 let manualAttributions = {}; // {address: exchange_name}
-let currentLanguage = localStorage.getItem('aifc-ui-language') === 'de' ? 'de' : 'en';
+let currentLanguage = 'en';
 
 const UI_TEXT = {
   en: {
@@ -681,7 +681,6 @@ function applyLanguage(lang) {
   const preservedRecipient = recipientAddr;
   const preservedManualAttributions = {...manualAttributions};
   currentLanguage = lang === 'de' ? 'de' : 'en';
-  localStorage.setItem('aifc-ui-language', currentLanguage);
   document.documentElement.lang = currentLanguage;
   document.title = t('pageTitle');
   document.getElementById('langEn').classList.toggle('active', currentLanguage === 'en');
