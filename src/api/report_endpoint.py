@@ -203,6 +203,152 @@ _attribution_cache: dict[str, dict] = {}
 _spend_resolution_cache: dict[tuple[str, int], tuple[str, Optional[str]]] = {}
 
 
+def _short_address(address: str, left: int = 10, right: int = 6) -> str:
+    if not address:
+        return "—"
+    if len(address) <= left + right + 1:
+        return address
+    return f"{address[:left]}…{address[-right:]}"
+
+
+def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_hops: list[dict]) -> dict:
+    kind_priority = {"address": 0, "recipient": 1, "victim": 2, "exchange": 3}
+    node_map: dict[str, dict] = {}
+    edges: list[dict] = []
+    max_column = 0
+
+    def _pick_kind(current: str, candidate: str) -> str:
+        return candidate if kind_priority.get(candidate, 0) >= kind_priority.get(current, 0) else current
+
+    def _upsert_node(address: str, column: int, *, kind: str = "address", exchange: str = "", sanctioned: bool = False) -> dict:
+        nonlocal max_column
+        if not address:
+            raise ValueError("address required")
+        max_column = max(max_column, column)
+        node = node_map.get(address)
+        if node is None:
+            node = {
+                "id": address,
+                "address": address,
+                "column": column,
+                "kind": kind,
+                "exchange": exchange or "",
+                "is_sanctioned": bool(sanctioned),
+                "total_in_btc": 0.0,
+                "total_out_btc": 0.0,
+                "has_change_output": False,
+                "chain_end_reason": "",
+            }
+            node_map[address] = node
+        else:
+            node["column"] = min(node["column"], column)
+            node["kind"] = _pick_kind(node.get("kind", "address"), kind)
+            if exchange and not node.get("exchange"):
+                node["exchange"] = exchange
+            node["is_sanctioned"] = node.get("is_sanctioned", False) or bool(sanctioned)
+        return node
+
+    for victim in dict.fromkeys(victim_addresses):
+        _upsert_node(victim, 0, kind="victim")
+    if recipient_address:
+        _upsert_node(recipient_address, 1, kind="recipient")
+
+    for hop in all_hops:
+        hop_index = int(hop.get("hop") or 0)
+        from_column = 0 if hop_index == 0 else hop_index
+        to_column = from_column + 1
+        from_entries = [tuple(item) for item in (hop.get("from_addresses") or [])]
+        to_entries = [tuple(item) for item in (hop.get("to_addresses") or [])]
+        exchange_addresses = set(hop.get("exchange_addresses") or [])
+        exchange_name = str(hop.get("exchange") or "")
+        from_addrs = {addr for addr, _ in from_entries if addr}
+
+        for addr, amount in from_entries:
+            if not addr:
+                continue
+            kind = "victim" if addr in victim_addresses else "recipient" if addr == recipient_address else "address"
+            if addr in exchange_addresses:
+                kind = "exchange"
+            node = _upsert_node(addr, from_column, kind=kind, exchange=exchange_name if addr in exchange_addresses else "", sanctioned=bool(hop.get("is_sanctioned")))
+            try:
+                node["total_out_btc"] += float(amount or 0)
+            except Exception:
+                pass
+
+        for addr, amount in to_entries:
+            if not addr:
+                continue
+            is_exchange_addr = addr in exchange_addresses
+            is_recipient_addr = hop_index == 0 and addr == recipient_address
+            is_change_addr = addr in from_addrs
+            kind = "exchange" if is_exchange_addr else "recipient" if is_recipient_addr else "address"
+            node = _upsert_node(addr, to_column, kind=kind, exchange=exchange_name if is_exchange_addr else "", sanctioned=bool(hop.get("is_sanctioned")))
+            try:
+                node["total_in_btc"] += float(amount or 0)
+            except Exception:
+                pass
+            if hop.get("chain_end_reason") and not node.get("chain_end_reason"):
+                node["chain_end_reason"] = hop.get("chain_end_reason") or ""
+            if is_change_addr:
+                node["has_change_output"] = True
+                continue
+            for src_addr, _src_amount in from_entries:
+                if not src_addr or src_addr == addr:
+                    continue
+                edge_id = f"{hop.get('txid', '')}:{src_addr}:{addr}:{len(edges)}"
+                try:
+                    edge_amount = float(amount or 0)
+                except Exception:
+                    edge_amount = 0.0
+                edges.append({
+                    "id": edge_id,
+                    "txid": hop.get("txid", ""),
+                    "from": src_addr,
+                    "to": addr,
+                    "amount_btc": edge_amount,
+                    "hop": hop_index,
+                    "confidence": hop.get("confidence", ""),
+                    "confidence_label": hop.get("confidence_label", ""),
+                    "label": hop.get("label", ""),
+                    "method": hop.get("method", ""),
+                    "notes": hop.get("notes", ""),
+                    "block": hop.get("block", 0),
+                    "timestamp": hop.get("timestamp", ""),
+                    "chain_end_reason": hop.get("chain_end_reason"),
+                    "is_exchange_edge": is_exchange_addr,
+                    "is_sanctioned": bool(hop.get("is_sanctioned")),
+                })
+
+    for node in node_map.values():
+        node["short_address"] = _short_address(node["address"])
+        if node["kind"] == "victim":
+            node["display_label"] = "Opfer"
+        elif node["kind"] == "recipient":
+            node["display_label"] = "Empfänger"
+        elif node["kind"] == "exchange":
+            node["display_label"] = node.get("exchange") or "Exchange"
+        else:
+            node["display_label"] = node["short_address"]
+
+    nodes = sorted(node_map.values(), key=lambda item: (item["column"], item["kind"], item["address"]))
+    exchange_count = sum(1 for node in nodes if node.get("kind") == "exchange")
+    lanes = [{"column": 0, "label": "Opfer"}] + [
+        {"column": column, "label": f"Hop {column - 1}"}
+        for column in range(1, max_column + 1)
+    ]
+    return {
+        "lanes": lanes,
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "exchange_count": exchange_count,
+            "max_column": max_column,
+        },
+    }
+
+
 def _chainalysis_check(address: str) -> bool:
     api_key = os.environ.get("CHAINALYSIS_API_KEY")
     if not api_key:
@@ -669,6 +815,7 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
                     ),
                     "is_sanctioned": False,
                     "chain_end_reason": "lookup_incomplete",
+                    "exchange_addresses": [],
                 })
             continue
 
@@ -788,6 +935,7 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
             "notes": notes,
             "is_sanctioned": sanctioned,
             "chain_end_reason": chain_end_reason,
+            "exchange_addresses": list(exchange_hits.keys()),
         }
 
         if exchange_hits:
@@ -1117,6 +1265,9 @@ async def generate_report(req: ReportRequest):
                 "btc": recipient_output_btc if recipient_output_btc > 0 else float(req.fraud_amount_btc or 0),
             }
 
+        hop0_exchange_addresses = sorted(
+            set(([req.recipient_address] if recipient_exchange_info else []) + list(direct_exchanges.keys()))
+        )
         hop0_has_exchange = bool(direct_exchanges or recipient_exchange_info)
         hop0_exchange = recipient_exchange_info or (next(iter(direct_exchanges.values())) if direct_exchanges else None)
 
@@ -1151,6 +1302,7 @@ async def generate_report(req: ReportRequest):
             "notes": hop0_notes,
             "is_sanctioned": any(c.get("is_sanctioned") for c in _attribution_cache.values()),
             "chain_end_reason": None,
+            "exchange_addresses": hop0_exchange_addresses,
         }
         if hop0_exchange:
             hop0["exchange"] = hop0_exchange["exchange"]
@@ -1166,6 +1318,7 @@ async def generate_report(req: ReportRequest):
         # 7. Exchanges aus allen Hops
         all_hops = [hop0] + hops
         exchanges = _build_exchanges(all_hops)
+        graph_payload = _build_flow_graph(req.victim_addresses, req.recipient_address, all_hops)
 
         # 8. PDF + Freeze Requests
         pdf_path = _generate_pdf(case_id, req, hop0, hops, exchanges)
@@ -1177,6 +1330,8 @@ async def generate_report(req: ReportRequest):
             "case_id": case_id,
             "status": "success",
             "hops_found": len(all_hops),
+            "hops": all_hops,
+            "graph": graph_payload,
             "exchanges_identified": [e["name"] for e in exchanges],
             "actual_amount_btc": req.fraud_amount_btc,
             "sanctioned_addresses": sum(1 for h in all_hops if h.get("is_sanctioned")),

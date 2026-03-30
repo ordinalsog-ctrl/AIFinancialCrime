@@ -15,7 +15,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;min-height:100vh}
   body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(29,111,164,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(29,111,164,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
-  .container{max-width:860px;margin:0 auto;padding:40px 24px;position:relative;z-index:1}
+  .container{max-width:1180px;margin:0 auto;padding:40px 24px;position:relative;z-index:1}
   .header{display:flex;align-items:center;gap:16px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--border)}
   .logo{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:16px;font-weight:600;color:white}
   .header-text h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
@@ -117,6 +117,84 @@
   .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-family:var(--mono);font-weight:600}
   .badge-success-sm{background:rgba(13,122,78,0.2);color:#34d399;border:1px solid rgba(13,122,78,0.3)}
   .badge-warning-sm{background:rgba(180,83,9,0.2);color:#fbbf24;border:1px solid rgba(180,83,9,0.3)}
+
+  .result-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 18px}
+  .stat-card{background:rgba(10,14,23,0.45);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:left}
+  .stat-card .stat-label{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
+  .stat-card .stat-value{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text)}
+  .stat-card.exchange .stat-value{color:#fbbf24}
+  .stat-card.success .stat-value{color:#34d399}
+  .stat-card.accent .stat-value{color:#7dd3fc}
+  .graph-shell{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;margin-top:18px;align-items:start}
+  .graph-panel,.graph-details,.timeline-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px}
+  .graph-panel{padding:16px}
+  .graph-details{padding:18px;position:sticky;top:24px}
+  .graph-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .graph-toolbar h4{font-size:14px;font-weight:600;letter-spacing:-0.01em}
+  .graph-toolset{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .graph-toolbtn{background:rgba(29,111,164,0.12);border:1px solid rgba(29,111,164,0.28);color:#93c5fd;border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--mono);cursor:pointer;transition:all 0.2s}
+  .graph-toolbtn:hover{border-color:var(--accent);background:rgba(29,111,164,0.2);color:white}
+  .graph-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .legend-pill,.detail-chip,.route-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:11px;font-family:var(--mono);border:1px solid transparent}
+  .legend-pill.victim,.detail-chip.victim{background:rgba(13,122,78,0.12);color:#34d399;border-color:rgba(13,122,78,0.25)}
+  .legend-pill.recipient,.detail-chip.recipient{background:rgba(180,83,9,0.16);color:#fbbf24;border-color:rgba(180,83,9,0.28)}
+  .legend-pill.exchange,.detail-chip.exchange{background:rgba(251,191,36,0.14);color:#fbbf24;border-color:rgba(251,191,36,0.28)}
+  .legend-pill.address,.detail-chip.neutral{background:rgba(148,163,184,0.1);color:#cbd5e1;border-color:rgba(148,163,184,0.2)}
+  .detail-chip.success{background:rgba(13,122,78,0.14);color:#34d399;border-color:rgba(13,122,78,0.25)}
+  .detail-chip.accent{background:rgba(29,111,164,0.16);color:#7dd3fc;border-color:rgba(29,111,164,0.28)}
+  .detail-chip.warn{background:rgba(180,83,9,0.16);color:#fbbf24;border-color:rgba(180,83,9,0.28)}
+  .detail-chip.danger{background:rgba(155,28,28,0.14);color:#fda4af;border-color:rgba(155,28,28,0.28)}
+  .graph-viewport{overflow:auto;border:1px solid rgba(30,45,69,0.9);border-radius:12px;background:radial-gradient(circle at top left, rgba(29,111,164,0.09), transparent 30%), linear-gradient(180deg, rgba(10,14,23,0.82), rgba(17,24,39,0.95));min-height:520px;padding:12px}
+  .graph-canvas{position:relative;transform-origin:top left;transition:transform 0.18s ease}
+  .graph-svg{position:absolute;inset:0;overflow:visible}
+  .graph-edge{fill:none;stroke:rgba(148,163,184,0.35);stroke-linecap:round;cursor:pointer;transition:stroke 0.18s ease,stroke-width 0.18s ease,filter 0.18s ease}
+  .graph-edge.l1{stroke:rgba(52,211,153,0.62)}
+  .graph-edge.l2{stroke:rgba(125,211,252,0.7)}
+  .graph-edge.exchange{stroke:rgba(251,191,36,0.92)}
+  .graph-edge.pooling{stroke:rgba(248,113,113,0.92);stroke-dasharray:8 7}
+  .graph-edge.selected{stroke-width:6 !important;filter:drop-shadow(0 0 8px rgba(125,211,252,0.45))}
+  .graph-lane-label{position:absolute;top:14px;padding:7px 12px;border-radius:999px;background:rgba(17,24,39,0.96);border:1px solid rgba(29,111,164,0.28);color:#93c5fd;font-size:11px;font-family:var(--mono);text-align:center;letter-spacing:0.08em;text-transform:uppercase}
+  .graph-node-card{position:absolute;width:220px;min-height:82px;padding:12px 14px;border-radius:14px;border:1px solid rgba(148,163,184,0.16);background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(10,14,23,0.98));color:var(--text);text-align:left;cursor:pointer;transition:transform 0.16s ease,border-color 0.16s ease,box-shadow 0.16s ease;box-shadow:0 10px 30px rgba(2,6,23,0.22)}
+  .graph-node-card:hover{transform:translateY(-2px);border-color:rgba(125,211,252,0.35)}
+  .graph-node-card.selected{border-color:rgba(125,211,252,0.85);box-shadow:0 0 0 1px rgba(125,211,252,0.35),0 18px 32px rgba(2,6,23,0.35)}
+  .graph-node-card.victim{border-color:rgba(13,122,78,0.34)}
+  .graph-node-card.recipient{border-color:rgba(180,83,9,0.38)}
+  .graph-node-card.exchange{border-color:rgba(251,191,36,0.38)}
+  .graph-node-card.sanctioned{box-shadow:0 0 0 1px rgba(248,113,113,0.35),0 18px 32px rgba(2,6,23,0.35)}
+  .graph-node-title{display:block;font-size:15px;font-weight:600;letter-spacing:-0.02em;margin-bottom:4px;color:var(--text)}
+  .graph-node-subtitle{display:block;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:8px;word-break:break-all}
+  .graph-node-meta{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text2)}
+  .node-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:10px;font-family:var(--mono);margin-bottom:8px;border:1px solid transparent}
+  .node-pill.victim{background:rgba(13,122,78,0.12);color:#34d399;border-color:rgba(13,122,78,0.25)}
+  .node-pill.recipient{background:rgba(180,83,9,0.14);color:#fbbf24;border-color:rgba(180,83,9,0.25)}
+  .node-pill.exchange{background:rgba(251,191,36,0.12);color:#fbbf24;border-color:rgba(251,191,36,0.28)}
+  .node-pill.address{background:rgba(148,163,184,0.08);color:#cbd5e1;border-color:rgba(148,163,184,0.2)}
+  .graph-empty{display:flex;align-items:center;justify-content:center;min-height:420px;color:var(--text2);font-family:var(--mono);font-size:12px}
+  .graph-details h4{font-size:15px;font-weight:600;margin-bottom:12px;letter-spacing:-0.01em}
+  .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .detail-block{background:rgba(10,14,23,0.42);border:1px solid rgba(148,163,184,0.14);border-radius:10px;padding:10px 12px}
+  .detail-block .label{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+  .detail-block .value{font-family:var(--mono);font-size:13px;color:var(--text)}
+  .detail-list{display:flex;flex-direction:column;gap:10px}
+  .detail-item{padding:10px 12px;border-radius:10px;background:rgba(10,14,23,0.42);border:1px solid rgba(148,163,184,0.14)}
+  .detail-item strong{display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+  .detail-item span,.detail-item div{font-family:var(--mono);font-size:12px;color:var(--text);word-break:break-word}
+  .timeline{display:grid;gap:10px;margin-top:18px}
+  .timeline-card{padding:16px}
+  .timeline-card.exchange{border-color:rgba(251,191,36,0.32)}
+  .timeline-card.pooling{border-color:rgba(248,113,113,0.32)}
+  .timeline-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .timeline-title{font-size:14px;font-weight:600;letter-spacing:-0.01em}
+  .timeline-badges{display:flex;gap:6px;flex-wrap:wrap}
+  .timeline-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;color:var(--text2);font-family:var(--mono);font-size:11px}
+  .timeline-route{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .route-chip{background:rgba(10,14,23,0.45);border-color:rgba(148,163,184,0.18);color:#cbd5e1}
+  .route-chip em{font-style:normal;color:var(--text2);margin-left:6px}
+  .route-chip.muted{opacity:0.75}
+  .timeline-notes{font-size:12px;color:var(--text2)}
+  @media (max-width: 1100px){.graph-shell{grid-template-columns:1fr}.graph-details{position:static}.result-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width: 720px){.container{padding:24px 14px}.result-stats{grid-template-columns:1fr}.graph-toolbar{align-items:flex-start}.graph-toolset{width:100%}.graph-toolbtn{flex:1;text-align:center}}
+
 </style>
 </head>
 <body>
@@ -366,6 +444,8 @@ let currentSection = 1;
 let caseData = {};
 let txData = null;
 let resultData = null;
+let graphZoom = 1;
+let currentGraphModel = null;
 let selectedInputs = new Set();
 let recipientAddr = '';
 let manualAttributions = {}; // {address: exchange_name}
@@ -652,6 +732,264 @@ function log(msg, type='info') {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function shortAddr(addr, left = 10, right = 6) {
+  if (!addr) return '—';
+  if (addr.length <= left + right + 1) return addr;
+  return `${addr.slice(0, left)}…${addr.slice(-right)}`;
+}
+
+function formatBtc(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return '0';
+  const digits = num >= 1 ? 4 : 8;
+  return num.toFixed(digits).replace(/0+$/, '').replace(/\.$/, '') || '0';
+}
+
+function chainEndMeta(reason) {
+  const map = {
+    exchange: ['Exchange-Endpunkt', 'exchange'],
+    pooling: ['Pooling erkannt', 'warn'],
+    unspent: ['UTXO unspent', 'neutral'],
+    lookup_incomplete: ['Auflösung unvollständig', 'danger'],
+  };
+  return map[reason] || null;
+}
+
+function renderStatCard(label, value, tone = '') {
+  return `<div class="stat-card ${tone}"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(String(value))}</div></div>`;
+}
+
+function renderAddressChips(entries) {
+  if (!entries || !entries.length) return '<span class="route-chip muted">—</span>';
+  return entries.map(([addr, amount]) => {
+    const amountPart = Number.isFinite(Number(amount)) && Number(amount) > 0
+      ? `<em>${formatBtc(amount)} BTC</em>`
+      : '';
+    return `<span class="route-chip">${escapeHtml(shortAddr(addr))}${amountPart}</span>`;
+  }).join('');
+}
+
+function renderHopTimeline(hops) {
+  if (!hops || !hops.length) return '';
+  return hops.map(hop => {
+    const reason = chainEndMeta(hop.chain_end_reason);
+    const tone = hop.exchange ? 'exchange' : hop.chain_end_reason === 'pooling' ? 'pooling' : '';
+    const badges = [
+      `<span class="detail-chip ${hop.confidence === 'L2' ? 'accent' : 'success'}">${escapeHtml(hop.confidence_label || hop.confidence || 'L1')}</span>`,
+      hop.exchange ? `<span class="detail-chip exchange">${escapeHtml(hop.exchange)}</span>` : '',
+      reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
+    ].filter(Boolean).join('');
+    return `
+      <div class="timeline-card ${tone}">
+        <div class="timeline-head">
+          <div class="timeline-title">Hop ${hop.hop} · ${escapeHtml(hop.label || 'Transaktion')}</div>
+          <div class="timeline-badges">${badges}</div>
+        </div>
+        <div class="timeline-meta">
+          <span>TX ${escapeHtml(shortAddr(hop.txid, 12, 8))}</span>
+          <span>Block ${escapeHtml(String(hop.block || '—'))}</span>
+          <span>${escapeHtml(hop.timestamp || '—')}</span>
+        </div>
+        <div class="timeline-route">
+          ${renderAddressChips(hop.from_addresses)}
+          <span class="route-chip muted">→</span>
+          ${renderAddressChips(hop.to_addresses)}
+        </div>
+        <div class="timeline-notes">${escapeHtml(hop.notes || '')}</div>
+      </div>`;
+  }).join('');
+}
+
+function showGraphSummary() {
+  if (!currentGraphModel) return;
+  const stats = currentGraphModel.stats || {};
+  const exchanges = (currentGraphModel.nodes || []).filter(n => n.kind === 'exchange').map(n => n.exchange || n.display_label);
+  document.getElementById('graphDetails').innerHTML = `
+    <h4>Graph-Zusammenfassung</h4>
+    <div class="detail-grid">
+      <div class="detail-block"><div class="label">Knoten</div><div class="value">${stats.node_count || 0}</div></div>
+      <div class="detail-block"><div class="label">Kanten</div><div class="value">${stats.edge_count || 0}</div></div>
+      <div class="detail-block"><div class="label">Exchange-Knoten</div><div class="value">${stats.exchange_count || 0}</div></div>
+      <div class="detail-block"><div class="label">Tiefste Ebene</div><div class="value">Hop ${Math.max(0, (stats.max_column || 1) - 1)}</div></div>
+    </div>
+    <div class="detail-list">
+      <div class="detail-item"><strong>Lesart</strong><div>Links stehen Opfer-Adressen. Jede weitere Spalte zeigt die im aktuellen Bericht nachverfolgten Hops. Exchange-Knoten sind farblich hervorgehoben, Pooling und unvollständige Auflösung bleiben sichtbar statt still zu verschwinden.</div></div>
+      <div class="detail-item"><strong>Erkannte Exchanges</strong><div>${exchanges.length ? escapeHtml(Array.from(new Set(exchanges)).join(', ')) : 'Keine belastbar erkannten Exchanges in diesem Lauf.'}</div></div>
+      <div class="detail-item"><strong>Interaktion</strong><div>Klicke auf einen Knoten oder eine Kante, um Adressen, TX-ID, Methode, Confidence und Notizen rechts im Detailpanel anzusehen.</div></div>
+    </div>`;
+}
+
+function showNodeDetails(nodeId) {
+  if (!currentGraphModel) return;
+  const node = currentGraphModel.nodeIndex?.[nodeId];
+  if (!node) return;
+  document.querySelectorAll('.graph-node-card.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.graph-edge.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelector(`.graph-node-card[data-node-id="${CSS.escape(nodeId)}"]`)?.classList.add('selected');
+  const reason = chainEndMeta(node.chain_end_reason);
+  const chips = [
+    `<span class="detail-chip ${node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'neutral'}">${escapeHtml(node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Opfer' : node.kind === 'recipient' ? 'Empfänger' : 'Adresse')}</span>`,
+    node.is_sanctioned ? '<span class="detail-chip danger">Sanktioniert</span>' : '',
+    reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
+    node.has_change_output ? '<span class="detail-chip warn">Change-Output</span>' : '',
+  ].filter(Boolean).join('');
+  document.getElementById('graphDetails').innerHTML = `
+    <h4>Knoten-Details</h4>
+    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
+    <div class="detail-list">
+      <div class="detail-item"><strong>Adresse</strong><div>${escapeHtml(node.address)}</div></div>
+      <div class="detail-item"><strong>Graph-Ebene</strong><div>${node.column === 0 ? 'Opfer' : `Hop ${node.column - 1}`}</div></div>
+      <div class="detail-item"><strong>BTC-Fluss</strong><div>Eingang: ${formatBtc(node.total_in_btc)} BTC · Ausgang: ${formatBtc(node.total_out_btc)} BTC</div></div>
+      ${node.exchange ? `<div class="detail-item"><strong>Exchange</strong><div>${escapeHtml(node.exchange)}</div></div>` : ''}
+      ${node.chain_end_reason ? `<div class="detail-item"><strong>Kettenende</strong><div>${escapeHtml((chainEndMeta(node.chain_end_reason) || [node.chain_end_reason])[0])}</div></div>` : ''}
+    </div>`;
+}
+
+function showEdgeDetails(edgeId) {
+  if (!currentGraphModel) return;
+  const edge = currentGraphModel.edgeIndex?.[edgeId];
+  if (!edge) return;
+  document.querySelectorAll('.graph-node-card.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('.graph-edge.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelector(`.graph-edge[data-edge-id="${CSS.escape(edgeId)}"]`)?.classList.add('selected');
+  const reason = chainEndMeta(edge.chain_end_reason);
+  const chips = [
+    `<span class="detail-chip ${edge.confidence === 'L2' ? 'accent' : 'success'}">${escapeHtml(edge.confidence_label || edge.confidence || 'L1')}</span>`,
+    edge.is_exchange_edge ? '<span class="detail-chip exchange">Exchange-Zufluss</span>' : '',
+    edge.is_sanctioned ? '<span class="detail-chip danger">Sanktionshinweis</span>' : '',
+    reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
+  ].filter(Boolean).join('');
+  document.getElementById('graphDetails').innerHTML = `
+    <h4>Kanten-Details</h4>
+    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
+    <div class="detail-list">
+      <div class="detail-item"><strong>TX-ID</strong><div>${escapeHtml(edge.txid)}</div></div>
+      <div class="detail-item"><strong>Von → Nach</strong><div>${escapeHtml(edge.from)} → ${escapeHtml(edge.to)}</div></div>
+      <div class="detail-item"><strong>Betrag</strong><div>${formatBtc(edge.amount_btc)} BTC</div></div>
+      <div class="detail-item"><strong>Methode</strong><div>${escapeHtml(edge.method || '—')}</div></div>
+      <div class="detail-item"><strong>Hop / Zeitpunkt</strong><div>Hop ${edge.hop} · ${escapeHtml(edge.timestamp || '—')}</div></div>
+      <div class="detail-item"><strong>Notizen</strong><div>${escapeHtml(edge.notes || '—')}</div></div>
+    </div>`;
+}
+
+function setGraphZoom(value) {
+  graphZoom = Math.max(0.7, Math.min(1.8, value));
+  const canvas = document.getElementById('graphCanvas');
+  if (canvas) canvas.style.transform = `scale(${graphZoom})`;
+  const label = document.getElementById('graphZoomValue');
+  if (label) label.textContent = `${Math.round(graphZoom * 100)}%`;
+}
+
+function zoomGraph(delta) {
+  setGraphZoom(graphZoom + delta);
+}
+
+function resetGraphZoom() {
+  setGraphZoom(1);
+}
+
+function renderFlowGraph(graph) {
+  const canvas = document.getElementById('graphCanvas');
+  if (!canvas) return;
+  if (!graph || !graph.nodes || !graph.nodes.length) {
+    canvas.innerHTML = '<div class="graph-empty">Keine Graph-Daten für diesen Lauf verfügbar.</div>';
+    currentGraphModel = null;
+    return;
+  }
+
+  const columns = new Map();
+  for (const node of graph.nodes) {
+    const col = Number(node.column || 0);
+    if (!columns.has(col)) columns.set(col, []);
+    columns.get(col).push(node);
+  }
+  const colKeys = Array.from(columns.keys()).sort((a, b) => a - b);
+  const kindOrder = { victim: 0, recipient: 1, exchange: 2, address: 3 };
+  for (const col of colKeys) {
+    columns.get(col).sort((a, b) => (kindOrder[a.kind] ?? 99) - (kindOrder[b.kind] ?? 99) || (b.total_in_btc || 0) - (a.total_in_btc || 0) || a.address.localeCompare(b.address));
+  }
+
+  const nodeWidth = 220;
+  const nodeHeight = 84;
+  const columnGap = 280;
+  const rowGap = 118;
+  const padX = 40;
+  const padTop = 82;
+  const maxRows = Math.max(1, ...colKeys.map(col => columns.get(col).length));
+  const width = padX * 2 + Math.max(1, colKeys.length) * columnGap + nodeWidth;
+  const height = padTop + maxRows * rowGap + 80;
+  const positions = {};
+  const laneHtml = [];
+  const nodeHtml = [];
+
+  colKeys.forEach((col, index) => {
+    const x = padX + index * columnGap;
+    const lane = (graph.lanes || []).find(item => Number(item.column) === col);
+    laneHtml.push(`<div class="graph-lane-label" style="left:${x}px;width:${nodeWidth}px">${escapeHtml(lane?.label || (col === 0 ? 'Opfer' : `Hop ${col - 1}`))}</div>`);
+    columns.get(col).forEach((node, rowIndex) => {
+      const y = padTop + rowIndex * rowGap;
+      positions[node.id] = { x, y };
+      const pillClass = node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'address';
+      const pillLabel = node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Opfer' : node.kind === 'recipient' ? 'Empfänger' : 'Adresse';
+      const meta = [];
+      if (node.short_address) meta.push(node.short_address);
+      if (Number(node.total_in_btc) > 0) meta.push(`+${formatBtc(node.total_in_btc)} BTC`);
+      if (Number(node.total_out_btc) > 0) meta.push(`-${formatBtc(node.total_out_btc)} BTC`);
+      if (node.has_change_output) meta.push('Change');
+      nodeHtml.push(`
+        <button type="button" class="graph-node-card ${node.kind} ${node.is_sanctioned ? 'sanctioned' : ''}" data-node-id="${escapeHtml(node.id)}" style="left:${x}px;top:${y}px">
+          <span class="node-pill ${pillClass}">${escapeHtml(pillLabel)}</span>
+          <span class="graph-node-title">${escapeHtml(node.display_label || node.short_address || node.address)}</span>
+          <span class="graph-node-subtitle">${escapeHtml(node.kind === 'exchange' ? node.address : node.short_address || node.address)}</span>
+          <span class="graph-node-meta">${meta.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</span>
+        </button>`);
+    });
+  });
+
+  const edgeHtml = (graph.edges || []).map(edge => {
+    const from = positions[edge.from];
+    const to = positions[edge.to];
+    if (!from || !to) return '';
+    const startX = from.x + nodeWidth;
+    const startY = from.y + nodeHeight / 2;
+    const endX = to.x;
+    const endY = to.y + nodeHeight / 2;
+    const bend = Math.max(80, (endX - startX) / 2);
+    const strokeWidth = Math.max(2, Math.min(6, 1.5 + Math.log10((Number(edge.amount_btc || 0) * 1e8) + 10)));
+    const classes = [
+      'graph-edge',
+      edge.is_exchange_edge ? 'exchange' : '',
+      edge.chain_end_reason === 'pooling' ? 'pooling' : '',
+      edge.confidence === 'L2' ? 'l2' : 'l1',
+    ].filter(Boolean).join(' ');
+    const path = `M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`;
+    return `<path class="${classes}" data-edge-id="${escapeHtml(edge.id)}" d="${path}" style="stroke-width:${strokeWidth}"></path>`;
+  }).join('');
+
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  canvas.innerHTML = `
+    <svg class="graph-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMin meet">${edgeHtml}</svg>
+    ${laneHtml.join('')}
+    ${nodeHtml.join('')}`;
+
+  currentGraphModel = {
+    ...graph,
+    nodeIndex: Object.fromEntries((graph.nodes || []).map(node => [node.id, node])),
+    edgeIndex: Object.fromEntries((graph.edges || []).map(edge => [edge.id, edge])),
+  };
+  document.querySelectorAll('.graph-node-card').forEach(el => el.addEventListener('click', () => showNodeDetails(el.dataset.nodeId)));
+  document.querySelectorAll('.graph-edge').forEach(el => el.addEventListener('click', () => showEdgeDetails(el.dataset.edgeId)));
+  resetGraphZoom();
+  showGraphSummary();
+}
+
+
 async function submitAndAnalyse() {
   if (!document.getElementById('confirmCheck').checked) {
     alert('Bitte bestätigen Sie die Angaben'); return;
@@ -687,19 +1025,53 @@ async function submitAndAnalyse() {
 
 function showResult() {
   showSection('secResult');
+  const hops = resultData.hops || [];
+  const graph = resultData.graph || { nodes: [], edges: [], stats: {} };
   document.getElementById('resultDesc').textContent =
     `Fall ${resultData.case_id} · ${resultData.hops_found} Hops analysiert`;
+
+  const hopBadges = hops.map(hop => {
+    const cls = hop.exchange ? 'exchange' : hop.confidence === 'L2' ? 'l2' : 'l1';
+    const label = hop.exchange ? `Hop ${hop.hop} · ${hop.exchange}` : `Hop ${hop.hop} · ${hop.confidence || 'L1'}`;
+    return `<span class="hop-badge ${cls}">${escapeHtml(label)}</span>`;
+  }).join('');
+
   document.getElementById('resultCard').innerHTML = `
     <h3>Analyse-Ergebnis</h3>
-    <div style="margin-bottom:12px">
-      ${Array.from({length: resultData.hops_found}, (_,i) =>
-        `<span class="hop-badge l1">Hop ${i} · L1</span>`).join('')}
-      ${(resultData.exchanges_identified||[]).map(e =>
-        `<span class="hop-badge exchange">🏦 ${e}</span>`).join('')}
+    <div class="result-stats">
+      ${renderStatCard('Hops', resultData.hops_found, 'accent')}
+      ${renderStatCard('Graph-Knoten', graph.stats?.node_count || 0)}
+      ${renderStatCard('Exchanges', resultData.exchanges_identified?.length || 0, 'exchange')}
+      ${renderStatCard('Sanktionshinweise', resultData.sanctioned_addresses || 0, resultData.sanctioned_addresses ? 'exchange' : 'success')}
     </div>
-    <div style="font-family:var(--mono);font-size:11px;color:var(--text2)">
-      Fall-ID: ${resultData.case_id}
-    </div>`;
+    <div style="margin-bottom:10px">${hopBadges}</div>
+    <div class="graph-shell">
+      <div class="graph-panel">
+        <div class="graph-toolbar">
+          <h4>Transaktionsfluss</h4>
+          <div class="graph-toolset">
+            <button class="graph-toolbtn" onclick="zoomGraph(-0.1)">−</button>
+            <button class="graph-toolbtn" onclick="resetGraphZoom()">Reset</button>
+            <button class="graph-toolbtn" onclick="zoomGraph(0.1)">+</button>
+            <span class="legend-pill address" id="graphZoomValue">100%</span>
+          </div>
+        </div>
+        <div class="graph-legend">
+          <span class="legend-pill victim">Opfer</span>
+          <span class="legend-pill recipient">Empfänger / Täterpfad</span>
+          <span class="legend-pill exchange">Exchange</span>
+          <span class="legend-pill address">Weitere Adressen</span>
+        </div>
+        <div class="graph-viewport" id="graphViewport">
+          <div class="graph-canvas" id="graphCanvas"></div>
+        </div>
+      </div>
+      <aside class="graph-details" id="graphDetails"></aside>
+    </div>
+    <div class="timeline" id="hopTimeline">${renderHopTimeline(hops)}</div>
+    <div style="margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--text2)">Fall-ID: ${resultData.case_id}</div>`;
+
+  renderFlowGraph(graph);
   const url = `${API_BASE}${resultData.pdf_download_url}`;
   document.getElementById('btnDownload').href = url;
   document.getElementById('pdfFrame').src = url;
