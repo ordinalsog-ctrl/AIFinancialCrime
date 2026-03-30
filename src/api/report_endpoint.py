@@ -418,7 +418,27 @@ def _get_tx(txid: str, rpc) -> Optional[dict]:
         pass
 
     if tx_data is not None:
-        # RPC liefert kein blockheight — von Blockstream nachladen
+        # Wenn der Node keine Blockhoehe mitsendet, versuchen wir sie zuerst lokal
+        # ueber den blockhash zu rekonstruieren, bevor wir externe APIs nutzen.
+        if not tx_data.get("blockheight") and not tx_data.get("status"):
+            block_hash = tx_data.get("blockhash")
+            if block_hash:
+                try:
+                    block_header = rpc.call("getblockheader", [block_hash])
+                    block_height = block_header.get("height") or 0
+                    block_time = block_header.get("time") or tx_data.get("blocktime", 0)
+                    if block_height:
+                        tx_data["blockheight"] = block_height
+                        tx_data["status"] = {
+                            "confirmed": True,
+                            "block_height": block_height,
+                            "block_time": block_time,
+                        }
+                        tx_data.setdefault("blocktime", block_time)
+                except Exception:
+                    pass
+
+        # RPC liefert weiterhin keine Blockhoehe — von Blockstream nachladen
         if not tx_data.get("blockheight") and not tx_data.get("status"):
             try:
                 url = f"https://blockstream.info/api/tx/{txid}"
@@ -531,8 +551,9 @@ def _get_spending_info(txid: str, vout_idx: int, rpc) -> tuple[str, Optional[str
         logger.debug(f"gettxout failed {txid[:16]}:{vout_idx}: {e}")
 
     try:
-        tx_data = rpc.call("getrawtransaction", [txid, True])
-        spend_block_hint = int(tx_data.get("blockheight") or tx_data.get("status", {}).get("block_height") or 0)
+        tx_data = _get_tx(txid, rpc)
+        if tx_data:
+            spend_block_hint = int(tx_data.get("blockheight") or tx_data.get("status", {}).get("block_height") or 0)
     except Exception as e:
         logger.debug(f"getrawtransaction failed for spend-hint {txid[:16]}:{vout_idx}: {e}")
 
@@ -1167,6 +1188,7 @@ async def generate_report(req: ReportRequest):
     Forensische Analyse — fokussiert auf den Pfad des gestohlenen Geldes.
     """
     _attribution_cache.clear()
+    _spend_resolution_cache.clear()
     if req.manual_attributions:
         _apply_manual_attributions(req.manual_attributions)
 
