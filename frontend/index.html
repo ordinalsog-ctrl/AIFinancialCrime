@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AIFinancialCrime — Fallaufnahme</title>
+<title>AIFinancialCrime — Case Intake</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
   :root {
@@ -16,11 +16,15 @@
   body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;min-height:100vh}
   body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(29,111,164,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(29,111,164,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
   .container{max-width:1180px;margin:0 auto;padding:40px 24px;position:relative;z-index:1}
-  .header{display:flex;align-items:center;gap:16px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--border)}
+  .header{display:flex;align-items:center;gap:16px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--border);flex-wrap:wrap}
   .logo{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:16px;font-weight:600;color:white}
   .header-text h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
   .header-text p{font-size:12px;color:var(--text2);font-family:var(--mono)}
-  .case-id-badge{margin-left:auto;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+  .header-actions{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .lang-switch{display:flex;align-items:center;gap:6px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:999px}
+  .lang-btn{background:transparent;border:none;color:var(--text2);border-radius:999px;padding:6px 12px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s}
+  .lang-btn.active{background:var(--accent);color:white}
+  .case-id-badge{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-family:var(--mono);font-size:12px;color:var(--accent)}
   .progress-bar{display:flex;gap:4px;margin-bottom:32px}
   .progress-step{flex:1;height:3px;background:var(--border);border-radius:2px;transition:background 0.3s}
   .progress-step.active{background:var(--accent)}.progress-step.done{background:var(--success)}
@@ -204,9 +208,15 @@
     <div class="logo">AF</div>
     <div class="header-text">
       <h1>AIFinancialCrime</h1>
-      <p>Forensische Fallaufnahme — Bitcoin</p>
+      <p id="headerSubtitle">Forensic Case Intake — Bitcoin</p>
     </div>
-    <div class="case-id-badge" id="caseIdBadge">AIFC-…</div>
+    <div class="header-actions">
+      <div class="lang-switch" aria-label="Language selector">
+        <button type="button" class="lang-btn active" id="langEn" onclick="switchLanguage('en')">EN</button>
+        <button type="button" class="lang-btn" id="langDe" onclick="switchLanguage('de')">DE</button>
+      </div>
+      <div class="case-id-badge" id="caseIdBadge">AIFC-…</div>
+    </div>
   </div>
 
   <div class="progress-bar">
@@ -217,190 +227,190 @@
     <div class="progress-step" id="step5"></div>
   </div>
 
-  <!-- Sektion 1: Opfer -->
+  <!-- Section 1: Victim -->
   <div class="section active" id="sec1">
     <div class="section-header">
       <div class="section-num">1</div>
-      <div class="section-title">Identifikation des Geschädigten</div>
+      <div class="section-title" id="sec1Title">Victim Identification</div>
     </div>
     <div class="field-grid">
       <div class="field">
-        <label>Vollständiger Name <span class="required">*</span></label>
-        <input type="text" id="victimName" placeholder="Max Mustermann">
+        <label id="labelVictimName">Full Name <span class="required">*</span></label>
+        <input type="text" id="victimName" placeholder="Jane Example">
       </div>
       <div class="field">
-        <label>Land</label>
-        <input type="text" id="victimCountry" placeholder="Deutschland" value="Deutschland">
+        <label id="labelVictimCountry">Country</label>
+        <input type="text" id="victimCountry" placeholder="Germany" value="Germany">
       </div>
       <div class="field">
-        <label>E-Mail</label>
-        <input type="email" id="victimEmail" placeholder="kontakt@beispiel.de">
+        <label id="labelVictimEmail">Email</label>
+        <input type="email" id="victimEmail" placeholder="contact@example.com">
       </div>
       <div class="field">
-        <label>Telefon</label>
+        <label id="labelVictimPhone">Phone</label>
         <input type="tel" id="victimPhone" placeholder="+49 …">
       </div>
     </div>
     <div class="nav-row">
       <span></span>
-      <button class="btn btn-primary" onclick="next(1)">Weiter →</button>
+      <button class="btn btn-primary" id="btnNext1" onclick="next(1)">Continue →</button>
     </div>
   </div>
 
-  <!-- Sektion 2: Vorfall -->
+  <!-- Section 2: Incident -->
   <div class="section" id="sec2">
     <div class="section-header">
       <div class="section-num">2</div>
-      <div class="section-title">Vorfallbeschreibung</div>
+      <div class="section-title" id="sec2Title">Incident Details</div>
     </div>
     <div class="field-grid">
       <div class="field">
-        <label>Datum des Diebstahls <span class="required">*</span></label>
-        <input type="text" id="incidentDate" placeholder="TT.MM.JJJJ HH:MM UTC">
+        <label id="labelIncidentDate">Date and Time of Theft <span class="required">*</span></label>
+        <input type="text" id="incidentDate" placeholder="YYYY-MM-DD HH:MM UTC">
       </div>
       <div class="field">
-        <label>Datum der Entdeckung</label>
-        <input type="text" id="discoveryDate" placeholder="TT.MM.JJJJ">
+        <label id="labelDiscoveryDate">Date of Discovery</label>
+        <input type="text" id="discoveryDate" placeholder="YYYY-MM-DD">
       </div>
       <div class="field span2">
-        <label>Wallet-Typ <span class="required">*</span></label>
+        <label id="labelWalletType">Wallet Type <span class="required">*</span></label>
         <div class="radio-group">
-          <label class="radio-option"><input type="radio" name="walletType" value="Hardware" checked>🔐 Hardware</label>
-          <label class="radio-option"><input type="radio" name="walletType" value="Software">💻 Software</label>
-          <label class="radio-option"><input type="radio" name="walletType" value="Exchange">🏦 Exchange</label>
+          <label class="radio-option"><input type="radio" name="walletType" value="Hardware" checked><span id="walletTypeHardware">🔐 Hardware</span></label>
+          <label class="radio-option"><input type="radio" name="walletType" value="Software"><span id="walletTypeSoftware">💻 Software</span></label>
+          <label class="radio-option"><input type="radio" name="walletType" value="Exchange"><span id="walletTypeExchange">🏦 Exchange</span></label>
         </div>
       </div>
       <div class="field">
-        <label>Wallet Name <span class="required">*</span></label>
-        <input type="text" id="walletBrand" placeholder="optional">
+        <label id="labelWalletName">Wallet Name</label>
+        <input type="text" id="walletBrand" placeholder="Optional">
       </div>
       <div class="field">
-        <label>Seed-Phrase digital gespeichert?</label>
+        <label id="labelSeedDigital">Was the seed phrase stored digitally?</label>
         <select id="seedDigital">
-          <option value="unbekannt">Unbekannt</option>
-          <option value="nein">Nein</option>
-          <option value="ja">Ja</option>
+          <option value="unknown">Unknown</option>
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
         </select>
       </div>
       <div class="field span2">
-        <label>Beschreibung</label>
-        <textarea id="incidentDesc" placeholder="Was ist passiert?"></textarea>
+        <label id="labelIncidentDesc">Incident Narrative</label>
+        <textarea id="incidentDesc" placeholder="What happened?"></textarea>
       </div>
     </div>
     <div class="nav-row">
-      <button class="btn btn-secondary" onclick="prev(2)">← Zurück</button>
-      <button class="btn btn-primary" onclick="next(2)">Weiter →</button>
+      <button class="btn btn-secondary" id="btnPrev2" onclick="prev(2)">← Back</button>
+      <button class="btn btn-primary" id="btnNext2" onclick="next(2)">Continue →</button>
     </div>
   </div>
 
-  <!-- Sektion 3: Blockchain -->
+  <!-- Section 3: Blockchain -->
   <div class="section" id="sec3">
     <div class="section-header">
       <div class="section-num">3</div>
-      <div class="section-title">Blockchain-Daten</div>
-      <div class="section-subtitle">On-chain verifiziert</div>
+      <div class="section-title" id="sec3Title">Blockchain Evidence</div>
+      <div class="section-subtitle" id="sec3Subtitle">On-chain verified</div>
     </div>
 
     <div class="field" style="margin-bottom:20px">
-      <label>TX-ID der Fraud-Transaktion <span class="required">*</span></label>
+      <label id="labelFraudTxid">Fraud Transaction TXID <span class="required">*</span></label>
       <div class="verify-row">
-        <input type="text" id="fraudTxid" class="mono-input" placeholder="64 hex Zeichen — TX-ID eingeben und verifizieren">
-        <button class="btn-verify" onclick="verifyTx()">Verifizieren &amp; Adressen laden</button>
+        <input type="text" id="fraudTxid" class="mono-input" placeholder="Enter a 64-character transaction ID and verify it">
+        <button class="btn-verify" id="btnVerifyTx" onclick="verifyTx()">Verify &amp; Load Addresses</button>
       </div>
       <div class="verify-result" id="txResult"></div>
-      <span class="field-hint">Nach der Verifizierung werden alle Input- und Output-Adressen angezeigt</span>
+      <span class="field-hint" id="fraudTxHint">After verification, all input and output addresses are displayed.</span>
     </div>
 
     <!-- TX Address Picker — erscheint nach Verifizierung -->
     <div class="tx-picker" id="txPicker">
-      <div class="tx-picker-title">Wählen Sie Ihre betroffenen Adressen aus:</div>
+      <div class="tx-picker-title" id="txPickerTitle">Select your affected addresses:</div>
 
       <div class="addr-section" id="inputSection">
-        <div class="addr-section-label">📥 INPUTS (Sender-Adressen)</div>
+        <div class="addr-section-label" id="inputSectionLabel">📥 INPUTS (Sender Addresses)</div>
         <div class="select-all-row">
-          <button class="btn-select-all" onclick="selectAll('inputs')">Alle Input-Adressen wählen</button>
-          <button class="btn-select-all" onclick="selectNone('inputs')">Keine</button>
+          <button class="btn-select-all" id="btnSelectAllInputs" onclick="selectAll('inputs')">Select all input addresses</button>
+          <button class="btn-select-all" id="btnSelectNoneInputs" onclick="selectNone('inputs')">None</button>
         </div>
         <div id="inputAddrs"></div>
       </div>
 
       <div class="addr-section" id="outputSection">
-        <div class="addr-section-label">📤 OUTPUTS (Empfänger-Adressen)</div>
+        <div class="addr-section-label" id="outputSectionLabel">📤 OUTPUTS (Recipient Addresses)</div>
         <div id="outputAddrs"></div>
       </div>
 
       <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text2)">
-        <strong style="color:var(--text)">Empfänger (Täter-Wallet):</strong>
+        <strong style="color:var(--text)" id="recipientHeaderLabel">Recipient (Target Wallet):</strong>
         <div class="recipient-display" id="recipientDisplay">—</div>
       </div>
 
       <div style="margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--text2)">
-        <span id="selectedCount">0</span> Adressen ausgewählt
+        <span id="selectedCount">0</span> <span id="selectedCountLabel">addresses selected</span>
       </div>
     </div>
 
     <div class="field-grid" style="margin-top:16px">
       <div class="field">
-        <label>Gestohlener Betrag (BTC) <span class="required">*</span></label>
-        <input type="text" id="fraudAmount" class="mono-input" placeholder="auto oder manuell">
+        <label id="labelFraudAmount">Stolen Amount (BTC) <span class="required">*</span></label>
+        <input type="text" id="fraudAmount" class="mono-input" placeholder="Auto-filled or manual override">
       </div>
       <div class="field">
-        <label>EUR-Wert (ca.)</label>
-        <input type="text" id="fraudAmountEur" placeholder="optional">
+        <label id="labelFraudAmountEur">Approximate EUR Value</label>
+        <input type="text" id="fraudAmountEur" placeholder="Optional">
       </div>
     </div>
 
     <div class="nav-row">
-      <button class="btn btn-secondary" onclick="prev(3)">← Zurück</button>
-      <button class="btn btn-primary" onclick="next(3)">Weiter →</button>
+      <button class="btn btn-secondary" id="btnPrev3" onclick="prev(3)">← Back</button>
+      <button class="btn btn-primary" id="btnNext3" onclick="next(3)">Continue →</button>
     </div>
   </div>
 
-  <!-- Sektion 4: Zusatz -->
+  <!-- Section 4: Supplementary -->
   <div class="section" id="sec4">
     <div class="section-header">
       <div class="section-num">4</div>
-      <div class="section-title">Zusatzinformationen</div>
-      <div class="section-subtitle">Optional</div>
+      <div class="section-title" id="sec4Title">Supplementary Information</div>
+      <div class="section-subtitle" id="sec4Subtitle">Optional</div>
     </div>
     <div class="field-grid">
       <div class="field">
-        <label>Letzte autorisierte TX</label>
-        <input type="text" id="lastLegitDate" placeholder="TT.MM.JJJJ">
+        <label id="labelLastLegit">Last Authorized Transaction</label>
+        <input type="text" id="lastLegitDate" placeholder="YYYY-MM-DD">
       </div>
       <div class="field">
-        <label>Verwendete Geräte</label>
-        <input type="text" id="devicesUsed" placeholder="MacBook, iPhone…">
+        <label id="labelDevicesUsed">Devices Used</label>
+        <input type="text" id="devicesUsed" placeholder="MacBook, iPhone …">
       </div>
       <div class="field span2">
-        <label>Verdächtige Aktivitäten</label>
-        <textarea id="suspiciousActivity" placeholder="Phishing, unbekannte Software…"></textarea>
+        <label id="labelSuspiciousActivity">Suspicious Activity</label>
+        <textarea id="suspiciousActivity" placeholder="Phishing, unknown software, unusual prompts …"></textarea>
       </div>
     </div>
     <div class="nav-row">
-      <button class="btn btn-secondary" onclick="prev(4)">← Zurück</button>
-      <button class="btn btn-primary" onclick="next(4)">Zusammenfassung →</button>
+      <button class="btn btn-secondary" id="btnPrev4" onclick="prev(4)">← Back</button>
+      <button class="btn btn-primary" id="btnNext4" onclick="next(4)">Summary →</button>
     </div>
   </div>
 
-  <!-- Sektion 5: Bestätigung -->
+  <!-- Section 5: Confirmation -->
   <div class="section" id="sec5">
     <div class="section-header">
       <div class="section-num">5</div>
-      <div class="section-title">Bestätigung & Analyse starten</div>
+      <div class="section-title" id="sec5Title">Confirmation & Launch Analysis</div>
     </div>
     <div id="summaryContent"></div>
     <div class="confirm-box">
-      <p>Bitte bestätigen Sie die Korrektheit aller Angaben. Die forensische Blockchain-Analyse wird automatisch gestartet und ein gerichtsverwertbarer PDF-Report generiert.</p>
+      <p id="confirmIntro">Please confirm that all information is correct. The forensic blockchain analysis will start automatically and generate an evidentiary PDF report.</p>
       <label class="confirm-check">
         <input type="checkbox" id="confirmCheck">
-        Ich bestätige die Korrektheit und autorisiere die forensische Analyse.
+        <span id="confirmLabel">I confirm the accuracy of the information and authorize the forensic analysis.</span>
       </label>
     </div>
     <div class="nav-row">
-      <button class="btn btn-secondary" onclick="prev(5)">← Korrigieren</button>
+      <button class="btn btn-secondary" id="btnPrev5" onclick="prev(5)">← Review</button>
       <button class="btn btn-success" onclick="submitAndAnalyse()" id="btnSubmit">
-        ✓ Analyse starten &amp; PDF generieren
+        ✓ Start Analysis &amp; Generate PDF
       </button>
     </div>
   </div>
@@ -409,10 +419,10 @@
   <div class="section" id="secAnalyse">
     <div class="analyse-screen">
       <div class="spinner spinner-large"></div>
-      <h2>Forensische Analyse läuft…</h2>
-      <p>Der lokale Bitcoin-Node wird abgefragt. Bitte warten.</p>
+      <h2 id="analysisTitle">Forensic analysis in progress…</h2>
+      <p id="analysisSubtitle">The local Bitcoin node is being queried. Please wait.</p>
       <div class="status-log" id="statusLog">
-        <div class="log-line info">⬡ Starte forensische Analyse…</div>
+        <div class="log-line info">⬡ Starting forensic analysis…</div>
       </div>
     </div>
   </div>
@@ -420,18 +430,18 @@
   <!-- Ergebnis -->
   <div class="section" id="secResult">
     <div class="analyse-screen">
-      <h2>✅ Analyse abgeschlossen</h2>
-      <p id="resultDesc">Report wurde erfolgreich generiert.</p>
+      <h2 id="resultTitle">✅ Analysis complete</h2>
+      <p id="resultDesc">The report was generated successfully.</p>
       <div class="result-card" id="resultCard"></div>
       <div>
-        <a id="btnDownload" class="btn-download" href="#" target="_blank">⬇ PDF herunterladen</a>
-        <button class="btn-preview" onclick="togglePreview()">👁 Vorschau</button>
+        <a id="btnDownload" class="btn-download" href="#" target="_blank">⬇ Download PDF</a>
+        <button class="btn-preview" id="btnPreview" onclick="togglePreview()">👁 Preview</button>
       </div>
       <div class="pdf-preview-container" id="pdfPreview">
         <iframe id="pdfFrame" src=""></iframe>
       </div>
       <div style="margin-top:24px">
-        <button class="btn btn-secondary" onclick="newCase()">+ Neuer Fall</button>
+        <button class="btn btn-secondary" id="btnNewCase" onclick="newCase()">+ New Case</button>
       </div>
     </div>
   </div>
@@ -449,10 +459,331 @@ let currentGraphModel = null;
 let selectedInputs = new Set();
 let recipientAddr = '';
 let manualAttributions = {}; // {address: exchange_name}
+let currentLanguage = localStorage.getItem('aifc-ui-language') === 'de' ? 'de' : 'en';
+
+const UI_TEXT = {
+  en: {
+    pageTitle: 'AIFinancialCrime — Case Intake',
+    headerSubtitle: 'Forensic Case Intake — Bitcoin',
+    sec1Title: 'Victim Identification',
+    labelVictimName: 'Full Name <span class="required">*</span>',
+    labelVictimCountry: 'Country',
+    labelVictimEmail: 'Email',
+    labelVictimPhone: 'Phone',
+    btnNext1: 'Continue →',
+    sec2Title: 'Incident Details',
+    labelIncidentDate: 'Date and Time of Theft <span class="required">*</span>',
+    labelDiscoveryDate: 'Date of Discovery',
+    labelWalletType: 'Wallet Type <span class="required">*</span>',
+    walletTypeHardware: '🔐 Hardware',
+    walletTypeSoftware: '💻 Software',
+    walletTypeExchange: '🏦 Exchange',
+    labelWalletName: 'Wallet Name',
+    labelSeedDigital: 'Was the seed phrase stored digitally?',
+    labelIncidentDesc: 'Incident Narrative',
+    btnPrev2: '← Back',
+    btnNext2: 'Continue →',
+    sec3Title: 'Blockchain Evidence',
+    sec3Subtitle: 'On-chain verified',
+    labelFraudTxid: 'Fraud Transaction TXID <span class="required">*</span>',
+    btnVerifyTx: 'Verify & Load Addresses',
+    fraudTxHint: 'After verification, all input and output addresses are displayed.',
+    txPickerTitle: 'Select your affected addresses:',
+    inputSectionLabel: '📥 INPUTS (Sender Addresses)',
+    btnSelectAllInputs: 'Select all input addresses',
+    btnSelectNoneInputs: 'None',
+    outputSectionLabel: '📤 OUTPUTS (Recipient Addresses)',
+    recipientHeaderLabel: 'Recipient (Target Wallet):',
+    selectedCountLabel: 'addresses selected',
+    labelFraudAmount: 'Stolen Amount (BTC) <span class="required">*</span>',
+    labelFraudAmountEur: 'Approximate EUR Value',
+    btnPrev3: '← Back',
+    btnNext3: 'Continue →',
+    sec4Title: 'Supplementary Information',
+    sec4Subtitle: 'Optional',
+    labelLastLegit: 'Last Authorized Transaction',
+    labelDevicesUsed: 'Devices Used',
+    labelSuspiciousActivity: 'Suspicious Activity',
+    btnPrev4: '← Back',
+    btnNext4: 'Summary →',
+    sec5Title: 'Confirmation & Launch Analysis',
+    confirmIntro: 'Please confirm that all information is correct. The forensic blockchain analysis will start automatically and generate an evidentiary PDF report.',
+    confirmLabel: 'I confirm the accuracy of the information and authorize the forensic analysis.',
+    btnPrev5: '← Review',
+    btnSubmit: '✓ Start Analysis & Generate PDF',
+    victimNamePlaceholder: 'Jane Example',
+    victimCountryPlaceholder: 'Germany',
+    victimEmailPlaceholder: 'contact@example.com',
+    incidentDatePlaceholder: 'YYYY-MM-DD HH:MM UTC',
+    discoveryDatePlaceholder: 'YYYY-MM-DD',
+    walletBrandPlaceholder: 'Optional',
+    incidentDescPlaceholder: 'What happened?',
+    fraudTxidPlaceholder: 'Enter a 64-character transaction ID and verify it',
+    fraudAmountPlaceholder: 'Auto-filled or manual override',
+    fraudAmountEurPlaceholder: 'Optional',
+    lastLegitPlaceholder: 'YYYY-MM-DD',
+    devicesUsedPlaceholder: 'MacBook, iPhone …',
+    suspiciousActivityPlaceholder: 'Phishing, unknown software, unusual prompts …',
+    countryDefault: 'Germany',
+    seedUnknown: 'Unknown',
+    seedNo: 'No',
+    seedYes: 'Yes',
+    alertName: 'Please enter the victim name.',
+    alertIncidentDate: 'Please enter the incident date and time.',
+    alertTxid: 'Please enter a valid transaction ID (64 characters).',
+    alertAmount: 'Please enter the stolen amount.',
+    alertSelectAddress: 'Please select at least one of your addresses from the transaction.',
+    alertRecipient: 'The recipient address was not identified. Please verify the transaction again.',
+    alertConfirm: 'Please confirm the case details before starting the analysis.',
+    invalidTxid: '❌ Invalid TXID — 64 hexadecimal characters are required.',
+    verifyingTx: '<span class="spinner"></span>Verifying on-chain data and loading addresses…',
+    txNotFound: 'Transaction not found',
+    verifiedSummary: '✅ Block {block} · {timestamp} · {inputs} input(s) → {outputs} output(s) · {amount} BTC',
+    recipientUnset: '← Click an output to mark the target address',
+    inputBadge: 'INPUT',
+    outputBadge: 'OUTPUT',
+    recipientBadge: 'TARGET',
+    markRecipient: 'Mark as Target',
+    markExchange: 'Mark as Exchange',
+    manualExchangeTitle: 'Exchange for address:',
+    manualExchangeHint: 'Known exchanges',
+    manualExchangeInput: 'Enter exchange name (leave blank to remove):',
+    summaryCaseIdentification: 'Case Identification',
+    summaryVictim: 'Victim',
+    summaryBlockchain: 'Blockchain Evidence',
+    summaryCaseId: 'Case ID',
+    summaryAmount: 'Amount',
+    summaryRecipient: 'Recipient',
+    summaryVictimAddresses: 'Your Addresses',
+    summaryManualExchange: 'Manual Exchange Label',
+    summaryVerified: '✓ Verified'
+  },
+  de: {
+    pageTitle: 'AIFinancialCrime — Fallaufnahme',
+    headerSubtitle: 'Forensische Fallaufnahme — Bitcoin',
+    sec1Title: 'Identifikation des Geschädigten',
+    labelVictimName: 'Vollständiger Name <span class="required">*</span>',
+    labelVictimCountry: 'Land',
+    labelVictimEmail: 'E-Mail',
+    labelVictimPhone: 'Telefon',
+    btnNext1: 'Weiter →',
+    sec2Title: 'Vorfallbeschreibung',
+    labelIncidentDate: 'Datum des Diebstahls <span class="required">*</span>',
+    labelDiscoveryDate: 'Datum der Entdeckung',
+    labelWalletType: 'Wallet-Typ <span class="required">*</span>',
+    walletTypeHardware: '🔐 Hardware',
+    walletTypeSoftware: '💻 Software',
+    walletTypeExchange: '🏦 Exchange',
+    labelWalletName: 'Wallet-Name',
+    labelSeedDigital: 'Seed-Phrase digital gespeichert?',
+    labelIncidentDesc: 'Beschreibung',
+    btnPrev2: '← Zurück',
+    btnNext2: 'Weiter →',
+    sec3Title: 'Blockchain-Daten',
+    sec3Subtitle: 'On-chain verifiziert',
+    labelFraudTxid: 'TX-ID der Fraud-Transaktion <span class="required">*</span>',
+    btnVerifyTx: 'Verifizieren & Adressen laden',
+    fraudTxHint: 'Nach der Verifizierung werden alle Input- und Output-Adressen angezeigt.',
+    txPickerTitle: 'Wählen Sie Ihre betroffenen Adressen aus:',
+    inputSectionLabel: '📥 INPUTS (Sender-Adressen)',
+    btnSelectAllInputs: 'Alle Input-Adressen wählen',
+    btnSelectNoneInputs: 'Keine',
+    outputSectionLabel: '📤 OUTPUTS (Empfänger-Adressen)',
+    recipientHeaderLabel: 'Empfänger (Täter-Wallet):',
+    selectedCountLabel: 'Adressen ausgewählt',
+    labelFraudAmount: 'Gestohlener Betrag (BTC) <span class="required">*</span>',
+    labelFraudAmountEur: 'EUR-Wert (ca.)',
+    btnPrev3: '← Zurück',
+    btnNext3: 'Weiter →',
+    sec4Title: 'Zusatzinformationen',
+    sec4Subtitle: 'Optional',
+    labelLastLegit: 'Letzte autorisierte TX',
+    labelDevicesUsed: 'Verwendete Geräte',
+    labelSuspiciousActivity: 'Verdächtige Aktivitäten',
+    btnPrev4: '← Zurück',
+    btnNext4: 'Zusammenfassung →',
+    sec5Title: 'Bestätigung & Analyse starten',
+    confirmIntro: 'Bitte bestätigen Sie die Korrektheit aller Angaben. Die forensische Blockchain-Analyse wird automatisch gestartet und ein gerichtsverwertbarer PDF-Report generiert.',
+    confirmLabel: 'Ich bestätige die Korrektheit der Angaben und autorisiere die forensische Analyse.',
+    btnPrev5: '← Korrigieren',
+    btnSubmit: '✓ Analyse starten & PDF generieren',
+    victimNamePlaceholder: 'Max Mustermann',
+    victimCountryPlaceholder: 'Deutschland',
+    victimEmailPlaceholder: 'kontakt@beispiel.de',
+    incidentDatePlaceholder: 'TT.MM.JJJJ HH:MM UTC',
+    discoveryDatePlaceholder: 'TT.MM.JJJJ',
+    walletBrandPlaceholder: 'Optional',
+    incidentDescPlaceholder: 'Was ist passiert?',
+    fraudTxidPlaceholder: '64 hex Zeichen — TX-ID eingeben und verifizieren',
+    fraudAmountPlaceholder: 'Auto oder manuell',
+    fraudAmountEurPlaceholder: 'Optional',
+    lastLegitPlaceholder: 'TT.MM.JJJJ',
+    devicesUsedPlaceholder: 'MacBook, iPhone …',
+    suspiciousActivityPlaceholder: 'Phishing, unbekannte Software, ungewöhnliche Aufforderungen …',
+    countryDefault: 'Deutschland',
+    seedUnknown: 'Unbekannt',
+    seedNo: 'Nein',
+    seedYes: 'Ja',
+    alertName: 'Bitte den Namen des Geschädigten eingeben.',
+    alertIncidentDate: 'Bitte das Datum des Diebstahls eingeben.',
+    alertTxid: 'Bitte eine gültige TX-ID eingeben (64 Zeichen).',
+    alertAmount: 'Bitte den gestohlenen Betrag eingeben.',
+    alertSelectAddress: 'Bitte mindestens eine Ihrer Adressen aus der Transaktion auswählen.',
+    alertRecipient: 'Die Empfängeradresse wurde nicht erkannt. Bitte die Transaktion erneut verifizieren.',
+    alertConfirm: 'Bitte bestätigen Sie die Angaben vor dem Start der Analyse.',
+    invalidTxid: '❌ Ungültige TX-ID — 64 hexadezimale Zeichen erforderlich.',
+    verifyingTx: '<span class="spinner"></span>On-chain-Daten werden verifiziert und Adressen geladen…',
+    txNotFound: 'Transaktion nicht gefunden',
+    verifiedSummary: '✅ Block {block} · {timestamp} · {inputs} Input(s) → {outputs} Output(s) · {amount} BTC',
+    recipientUnset: '← Klicken Sie auf einen Output, um die Zieladresse zu markieren',
+    inputBadge: 'INPUT',
+    outputBadge: 'OUTPUT',
+    recipientBadge: 'TÄTER',
+    markRecipient: 'Als Täter markieren',
+    markExchange: 'Als Exchange markieren',
+    manualExchangeTitle: 'Exchange für Adresse:',
+    manualExchangeHint: 'Bekannte Exchanges',
+    manualExchangeInput: 'Exchange-Name eingeben (leer lassen zum Entfernen):',
+    summaryCaseIdentification: 'Fallidentifikation',
+    summaryVictim: 'Geschädigter',
+    summaryBlockchain: 'Blockchain-Daten',
+    summaryCaseId: 'Fall-ID',
+    summaryAmount: 'Betrag',
+    summaryRecipient: 'Empfänger',
+    summaryVictimAddresses: 'Ihre Adressen',
+    summaryManualExchange: 'Exchange (manuell)',
+    summaryVerified: '✓ Verifiziert'
+  }
+};
+
+function t(key, vars = {}) {
+  let text = (UI_TEXT[currentLanguage] && UI_TEXT[currentLanguage][key]) || UI_TEXT.en[key] || key;
+  return text.replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '');
+}
+
+function setText(id, key) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = t(key);
+}
+
+function setHtml(id, key) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = t(key);
+}
+
+function setPlaceholder(id, key) {
+  const el = document.getElementById(id);
+  if (el) el.placeholder = t(key);
+}
+
+function applyLanguage(lang) {
+  const preservedInputs = new Set(selectedInputs);
+  const preservedRecipient = recipientAddr;
+  const preservedManualAttributions = {...manualAttributions};
+  currentLanguage = lang === 'de' ? 'de' : 'en';
+  localStorage.setItem('aifc-ui-language', currentLanguage);
+  document.documentElement.lang = currentLanguage;
+  document.title = t('pageTitle');
+  document.getElementById('langEn').classList.toggle('active', currentLanguage === 'en');
+  document.getElementById('langDe').classList.toggle('active', currentLanguage === 'de');
+
+  setText('headerSubtitle', 'headerSubtitle');
+  setText('sec1Title', 'sec1Title');
+  setHtml('labelVictimName', 'labelVictimName');
+  setText('labelVictimCountry', 'labelVictimCountry');
+  setText('labelVictimEmail', 'labelVictimEmail');
+  setText('labelVictimPhone', 'labelVictimPhone');
+  setText('btnNext1', 'btnNext1');
+  setText('sec2Title', 'sec2Title');
+  setHtml('labelIncidentDate', 'labelIncidentDate');
+  setText('labelDiscoveryDate', 'labelDiscoveryDate');
+  setHtml('labelWalletType', 'labelWalletType');
+  setText('walletTypeHardware', 'walletTypeHardware');
+  setText('walletTypeSoftware', 'walletTypeSoftware');
+  setText('walletTypeExchange', 'walletTypeExchange');
+  setText('labelWalletName', 'labelWalletName');
+  setText('labelSeedDigital', 'labelSeedDigital');
+  setText('labelIncidentDesc', 'labelIncidentDesc');
+  setText('btnPrev2', 'btnPrev2');
+  setText('btnNext2', 'btnNext2');
+  setText('sec3Title', 'sec3Title');
+  setText('sec3Subtitle', 'sec3Subtitle');
+  setHtml('labelFraudTxid', 'labelFraudTxid');
+  setText('btnVerifyTx', 'btnVerifyTx');
+  setText('fraudTxHint', 'fraudTxHint');
+  setText('txPickerTitle', 'txPickerTitle');
+  setText('inputSectionLabel', 'inputSectionLabel');
+  setText('btnSelectAllInputs', 'btnSelectAllInputs');
+  setText('btnSelectNoneInputs', 'btnSelectNoneInputs');
+  setText('outputSectionLabel', 'outputSectionLabel');
+  setText('recipientHeaderLabel', 'recipientHeaderLabel');
+  setText('selectedCountLabel', 'selectedCountLabel');
+  setHtml('labelFraudAmount', 'labelFraudAmount');
+  setText('labelFraudAmountEur', 'labelFraudAmountEur');
+  setText('btnPrev3', 'btnPrev3');
+  setText('btnNext3', 'btnNext3');
+  setText('sec4Title', 'sec4Title');
+  setText('sec4Subtitle', 'sec4Subtitle');
+  setText('labelLastLegit', 'labelLastLegit');
+  setText('labelDevicesUsed', 'labelDevicesUsed');
+  setText('labelSuspiciousActivity', 'labelSuspiciousActivity');
+  setText('btnPrev4', 'btnPrev4');
+  setText('btnNext4', 'btnNext4');
+  setText('sec5Title', 'sec5Title');
+  setText('confirmIntro', 'confirmIntro');
+  setText('confirmLabel', 'confirmLabel');
+  setText('btnPrev5', 'btnPrev5');
+  setText('btnSubmit', 'btnSubmit');
+
+  setPlaceholder('victimName', 'victimNamePlaceholder');
+  setPlaceholder('victimCountry', 'victimCountryPlaceholder');
+  setPlaceholder('victimEmail', 'victimEmailPlaceholder');
+  setPlaceholder('incidentDate', 'incidentDatePlaceholder');
+  setPlaceholder('discoveryDate', 'discoveryDatePlaceholder');
+  setPlaceholder('walletBrand', 'walletBrandPlaceholder');
+  setPlaceholder('incidentDesc', 'incidentDescPlaceholder');
+  setPlaceholder('fraudTxid', 'fraudTxidPlaceholder');
+  setPlaceholder('fraudAmount', 'fraudAmountPlaceholder');
+  setPlaceholder('fraudAmountEur', 'fraudAmountEurPlaceholder');
+  setPlaceholder('lastLegitDate', 'lastLegitPlaceholder');
+  setPlaceholder('devicesUsed', 'devicesUsedPlaceholder');
+  setPlaceholder('suspiciousActivity', 'suspiciousActivityPlaceholder');
+
+  const country = document.getElementById('victimCountry');
+  if (country && (!country.value.trim() || ['Germany', 'Deutschland'].includes(country.value.trim()))) {
+    country.value = t('countryDefault');
+  }
+
+  const seedDigital = document.getElementById('seedDigital');
+  if (seedDigital && seedDigital.options.length === 3) {
+    seedDigital.options[0].text = t('seedUnknown');
+    seedDigital.options[1].text = t('seedNo');
+    seedDigital.options[2].text = t('seedYes');
+  }
+
+  if (!recipientAddr) {
+    document.getElementById('recipientDisplay').textContent = t('recipientUnset');
+  }
+
+  if (txData) {
+    selectedInputs = preservedInputs;
+    recipientAddr = preservedRecipient;
+    manualAttributions = preservedManualAttributions;
+    renderTxAddresses(txData, true);
+  }
+  if (currentSection === 5) {
+    buildSummary();
+  }
+}
+
+function switchLanguage(lang) {
+  applyLanguage(lang);
+}
 
 const caseId = 'AIFC-' + new Date().toISOString().slice(0,10).replace(/-/g,'') +
                '-' + Math.random().toString(36).slice(2,6).toUpperCase();
 document.getElementById('caseIdBadge').textContent = caseId;
+applyLanguage(currentLanguage);
 
 function updateProgress(step) {
   for (let i = 1; i <= 5; i++) {
@@ -483,18 +814,17 @@ function prev(from) {
 
 function validate(section) {
   if (section === 1 && !document.getElementById('victimName').value.trim()) {
-    alert('Bitte Name eingeben'); return false;
+    alert(t('alertName')); return false;
   }
   if (section === 2) {
-    if (!document.getElementById('incidentDate').value.trim()) { alert('Datum eingeben'); return false; }
-    if (!document.getElementById('walletBrand').value.trim()) { alert('Wallet-Name eingeben'); return false; }
+    if (!document.getElementById('incidentDate').value.trim()) { alert(t('alertIncidentDate')); return false; }
   }
   if (section === 3) {
     const txid = document.getElementById('fraudTxid').value.trim();
-    if (!txid || txid.length !== 64) { alert('Gültige TX-ID eingeben (64 Zeichen)'); return false; }
-    if (!document.getElementById('fraudAmount').value.trim()) { alert('Betrag eingeben'); return false; }
-    if (selectedInputs.size === 0) { alert('Bitte mindestens eine Ihrer Adressen aus der TX auswählen'); return false; }
-    if (!recipientAddr) { alert('Empfängeradresse wurde nicht erkannt — bitte TX verifizieren'); return false; }
+    if (!txid || txid.length !== 64) { alert(t('alertTxid')); return false; }
+    if (!document.getElementById('fraudAmount').value.trim()) { alert(t('alertAmount')); return false; }
+    if (selectedInputs.size === 0) { alert(t('alertSelectAddress')); return false; }
+    if (!recipientAddr) { alert(t('alertRecipient')); return false; }
   }
   return true;
 }
@@ -504,15 +834,15 @@ async function verifyTx() {
   const result = document.getElementById('txResult');
   if (!txid || txid.length !== 64) {
     result.className = 'verify-result error';
-    result.textContent = '❌ Ungültige TX-ID — 64 hex Zeichen erforderlich';
+    result.textContent = t('invalidTxid');
     return;
   }
   result.className = 'verify-result loading';
-  result.innerHTML = '<span class="spinner"></span>Verifiziere on-chain und lade Adressen…';
+  result.innerHTML = t('verifyingTx');
 
   try {
     const r = await fetch(`https://mempool.space/api/tx/${txid}`);
-    if (!r.ok) throw new Error('TX nicht gefunden');
+    if (!r.ok) throw new Error(t('txNotFound'));
     const tx = await r.json();
     txData = tx;
 
@@ -526,7 +856,13 @@ async function verifyTx() {
     document.getElementById('fraudAmount').value = totalOut.toFixed(8);
 
     result.className = 'verify-result success';
-    result.innerHTML = `✅ Block ${status.block_height||'?'} · ${ts} · ${tx.vin.length} Input(s) → ${tx.vout.length} Output(s) · ${totalOut.toFixed(8)} BTC`;
+    result.innerHTML = t('verifiedSummary', {
+      block: status.block_height || '?',
+      timestamp: ts,
+      inputs: tx.vin.length,
+      outputs: tx.vout.length,
+      amount: totalOut.toFixed(8),
+    });
 
     // Adressen rendern
     renderTxAddresses(tx);
@@ -537,15 +873,20 @@ async function verifyTx() {
   }
 }
 
-function renderTxAddresses(tx) {
+function renderTxAddresses(tx, preserveState = false) {
   const picker = document.getElementById('txPicker');
   picker.style.display = 'block';
-  selectedInputs.clear();
+  const preservedInputs = preserveState ? new Set(selectedInputs) : new Set();
+  const preservedRecipient = preserveState ? recipientAddr : '';
+  const preservedManualAttributions = preserveState ? {...manualAttributions} : {};
+  if (!preserveState) {
+    selectedInputs.clear();
+  }
 
   // Empfänger wird manuell vom User gewählt — keine Auto-Selektion
-  recipientAddr = '';
-  manualAttributions = {};
-  document.getElementById('recipientDisplay').textContent = '← Klick auf einen Output um den Täter zu markieren';
+  recipientAddr = preserveState ? preservedRecipient : '';
+  manualAttributions = preserveState ? preservedManualAttributions : {};
+  document.getElementById('recipientDisplay').textContent = recipientAddr || t('recipientUnset');
 
   // Input-Adressen rendern
   const inputContainer = document.getElementById('inputAddrs');
@@ -563,12 +904,12 @@ function renderTxAddresses(tx) {
     row.dataset.addr = addr;
     row.dataset.group = 'inputs';
     row.innerHTML = `
-      <input type="checkbox" onchange="toggleAddr(this, '${addr}')">
+      <input type="checkbox" ${preservedInputs.has(addr) ? 'checked' : ''} onchange="toggleAddr(this, '${addr}')">
       <div class="addr-row-info">
         <div class="addr-row-addr" title="${addr}">${addr}</div>
         <div class="addr-row-val">${val} BTC</div>
       </div>
-      <span class="addr-row-badge badge-input">INPUT</span>
+      <span class="addr-row-badge badge-input">${t('inputBadge')}</span>
     `;
     row.onclick = (e) => {
       if (e.target.type !== 'checkbox') {
@@ -577,6 +918,9 @@ function renderTxAddresses(tx) {
         toggleAddr(cb, addr);
       }
     };
+    if (preservedInputs.has(addr)) {
+      row.classList.add('selected');
+    }
     inputContainer.appendChild(row);
   });
 
@@ -591,19 +935,24 @@ function renderTxAddresses(tx) {
 
     const row = document.createElement('div');
     row.className = 'addr-row';
+    if (addr === preservedRecipient) {
+      row.classList.add('selected');
+      row.style.borderColor = '#b45309';
+    }
     row.dataset.addr = addr;
     row.dataset.group = 'outputs';
     row.id = `output-row-${i}`;
+    const exchangeLabel = preservedManualAttributions[addr];
     row.innerHTML = `
       <div class="addr-row-info">
         <div class="addr-row-addr" title="${addr}">${addr}</div>
         <div class="addr-row-val">${val} BTC</div>
       </div>
-      <span class="addr-row-badge badge-output" id="output-badge-${i}">OUTPUT</span>
+      <span class="addr-row-badge ${addr === preservedRecipient ? 'badge-recipient' : 'badge-output'}" id="output-badge-${i}">${addr === preservedRecipient ? t('recipientBadge') : exchangeLabel ? 'EXCHANGE' : t('outputBadge')}</span>
       <button style="margin-left:8px;background:rgba(180,83,9,0.15);border:1px solid rgba(180,83,9,0.4);color:#fbbf24;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--mono)"
-              onclick="setRecipient('${addr}', ${i})">Als Täter markieren</button>
-      <button id="ex-btn-${i}" style="margin-left:4px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.35);color:#93c5fd;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--mono)"
-              onclick="markExchange('${addr}', ${i})">Als Exchange markieren</button>
+              onclick="setRecipient('${addr}', ${i})">${t('markRecipient')}</button>
+      <button id="ex-btn-${i}" style="margin-left:4px;background:${exchangeLabel ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.12)'};border:1px solid ${exchangeLabel ? '#3b82f6' : 'rgba(59,130,246,0.35)'};color:#93c5fd;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:var(--mono)"
+              onclick="markExchange('${addr}', ${i})">${exchangeLabel ? `✓ ${exchangeLabel}` : t('markExchange')}</button>
     `;
     outputContainer.appendChild(row);
   });
@@ -617,8 +966,8 @@ function setRecipient(addr, idx) {
     r.classList.remove('selected');
     r.style.borderColor = '';
     const badge = r.querySelector('.addr-row-badge');
-    if (badge && badge.textContent === 'TÄTER') {
-      badge.textContent = 'OUTPUT';
+    if (badge && badge.textContent === t('recipientBadge')) {
+      badge.textContent = t('outputBadge');
       badge.className = 'addr-row-badge badge-output';
     }
   });
@@ -629,7 +978,7 @@ function setRecipient(addr, idx) {
     row.classList.add('selected');
     row.style.borderColor = '#b45309';
     const badge = document.getElementById(`output-badge-${idx}`);
-    if (badge) { badge.textContent = 'TÄTER'; badge.className = 'addr-row-badge badge-recipient'; }
+    if (badge) { badge.textContent = t('recipientBadge'); badge.className = 'addr-row-badge badge-recipient'; }
   }
   document.getElementById('recipientDisplay').textContent = addr;
   updateSelectedCount();
@@ -640,7 +989,7 @@ const EXCHANGE_OPTIONS = ['Binance','Coinbase','Kraken','Huobi','Bitfinex','OKX'
 function markExchange(addr, idx) {
   const current = manualAttributions[addr];
   const exchange = prompt(
-    `Exchange für Adresse:\n${addr}\n\nBekannte Exchanges: ${EXCHANGE_OPTIONS.join(', ')}\n\nExchange-Name eingeben (leer lassen zum Entfernen):`,
+    `${t('manualExchangeTitle')}\n${addr}\n\n${t('manualExchangeHint')}: ${EXCHANGE_OPTIONS.join(', ')}\n\n${t('manualExchangeInput')}`,
     current || ''
   );
   if (exchange === null) return; // Abbrechen
@@ -649,11 +998,11 @@ function markExchange(addr, idx) {
   if (exchange.trim()) {
     manualAttributions[addr] = exchange.trim();
     if (btn) { btn.textContent = `✓ ${exchange.trim()}`; btn.style.background = 'rgba(59,130,246,0.3)'; btn.style.borderColor = '#3b82f6'; }
-    if (badge && badge.textContent !== 'TÄTER') { badge.textContent = 'EXCHANGE'; badge.className = 'addr-row-badge'; badge.style.cssText = 'font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.4);'; }
+    if (badge && badge.textContent !== t('recipientBadge')) { badge.textContent = 'EXCHANGE'; badge.className = 'addr-row-badge'; badge.style.cssText = 'font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.4);'; }
   } else {
     delete manualAttributions[addr];
-    if (btn) { btn.textContent = 'Als Exchange markieren'; btn.style.background = 'rgba(59,130,246,0.12)'; btn.style.borderColor = 'rgba(59,130,246,0.35)'; }
-    if (badge && badge.textContent === 'EXCHANGE') { badge.textContent = 'OUTPUT'; badge.className = 'addr-row-badge badge-output'; badge.style.cssText = ''; }
+    if (btn) { btn.textContent = t('markExchange'); btn.style.background = 'rgba(59,130,246,0.12)'; btn.style.borderColor = 'rgba(59,130,246,0.35)'; }
+    if (badge && badge.textContent === 'EXCHANGE') { badge.textContent = t('outputBadge'); badge.className = 'addr-row-badge badge-output'; badge.style.cssText = ''; }
   }
 }
 
@@ -708,17 +1057,17 @@ function buildSummary() {
 
   document.getElementById('summaryContent').innerHTML = `
     <div class="summary-card">
-      <div class="summary-section-title">Fallidentifikation</div>
-      <div class="summary-row"><div class="summary-key">Fall-ID</div><div class="summary-val">${caseId}</div></div>
-      <div class="summary-row"><div class="summary-key">Geschädigter</div><div class="summary-val">${caseData.victim_name} · ${caseData.victim_country}</div></div>
+      <div class="summary-section-title">${t('summaryCaseIdentification')}</div>
+      <div class="summary-row"><div class="summary-key">${t('summaryCaseId')}</div><div class="summary-val">${caseId}</div></div>
+      <div class="summary-row"><div class="summary-key">${t('summaryVictim')}</div><div class="summary-val">${caseData.victim_name} · ${caseData.victim_country}</div></div>
     </div>
     <div class="summary-card">
-      <div class="summary-section-title">Blockchain</div>
-      <div class="summary-row"><div class="summary-key">TX-ID</div><div class="summary-val">${caseData.fraud_txid} <span class="badge badge-success-sm">✓ Verifiziert</span></div></div>
-      <div class="summary-row"><div class="summary-key">Betrag</div><div class="summary-val">${caseData.fraud_amount_btc} BTC ${caseData.fraud_amount_eur ? '· '+caseData.fraud_amount_eur : ''}</div></div>
-      <div class="summary-row"><div class="summary-key">Empfänger</div><div class="summary-val">${caseData.recipient_address}</div></div>
-      <div class="summary-row"><div class="summary-key">Ihre Adressen</div><div class="summary-val">${caseData.victim_addresses.map(a=>`<div>${a}</div>`).join('')}</div></div>
-      ${Object.keys(caseData.manual_attributions).length > 0 ? `<div class="summary-row"><div class="summary-key">Exchange (manuell)</div><div class="summary-val">${Object.entries(caseData.manual_attributions).map(([a,e])=>`<div>${a} → ${e}</div>`).join('')}</div></div>` : ''}
+      <div class="summary-section-title">${t('summaryBlockchain')}</div>
+      <div class="summary-row"><div class="summary-key">TX-ID</div><div class="summary-val">${caseData.fraud_txid} <span class="badge badge-success-sm">${t('summaryVerified')}</span></div></div>
+      <div class="summary-row"><div class="summary-key">${t('summaryAmount')}</div><div class="summary-val">${caseData.fraud_amount_btc} BTC ${caseData.fraud_amount_eur ? '· '+caseData.fraud_amount_eur : ''}</div></div>
+      <div class="summary-row"><div class="summary-key">${t('summaryRecipient')}</div><div class="summary-val">${caseData.recipient_address}</div></div>
+      <div class="summary-row"><div class="summary-key">${t('summaryVictimAddresses')}</div><div class="summary-val">${caseData.victim_addresses.map(a=>`<div>${a}</div>`).join('')}</div></div>
+      ${Object.keys(caseData.manual_attributions).length > 0 ? `<div class="summary-row"><div class="summary-key">${t('summaryManualExchange')}</div><div class="summary-val">${Object.entries(caseData.manual_attributions).map(([a,e])=>`<div>${a} → ${e}</div>`).join('')}</div></div>` : ''}
     </div>
   `;
 }
@@ -752,10 +1101,10 @@ function formatBtc(value) {
 
 function chainEndMeta(reason) {
   const map = {
-    exchange: ['Exchange-Endpunkt', 'exchange'],
-    pooling: ['Pooling erkannt', 'warn'],
+    exchange: ['Exchange endpoint', 'exchange'],
+    pooling: ['Pooling detected', 'warn'],
     unspent: ['UTXO unspent', 'neutral'],
-    lookup_incomplete: ['Auflösung unvollständig', 'danger'],
+    lookup_incomplete: ['Resolution incomplete', 'danger'],
   };
   return map[reason] || null;
 }
@@ -810,17 +1159,17 @@ function showGraphSummary() {
   const stats = currentGraphModel.stats || {};
   const exchanges = (currentGraphModel.nodes || []).filter(n => n.kind === 'exchange').map(n => n.exchange || n.display_label);
   document.getElementById('graphDetails').innerHTML = `
-    <h4>Graph-Zusammenfassung</h4>
+    <h4>Graph Summary</h4>
     <div class="detail-grid">
-      <div class="detail-block"><div class="label">Knoten</div><div class="value">${stats.node_count || 0}</div></div>
-      <div class="detail-block"><div class="label">Kanten</div><div class="value">${stats.edge_count || 0}</div></div>
-      <div class="detail-block"><div class="label">Exchange-Knoten</div><div class="value">${stats.exchange_count || 0}</div></div>
-      <div class="detail-block"><div class="label">Tiefste Ebene</div><div class="value">Hop ${Math.max(0, (stats.max_column || 1) - 1)}</div></div>
+      <div class="detail-block"><div class="label">Nodes</div><div class="value">${stats.node_count || 0}</div></div>
+      <div class="detail-block"><div class="label">Edges</div><div class="value">${stats.edge_count || 0}</div></div>
+      <div class="detail-block"><div class="label">Exchange Nodes</div><div class="value">${stats.exchange_count || 0}</div></div>
+      <div class="detail-block"><div class="label">Deepest Level</div><div class="value">Hop ${Math.max(0, (stats.max_column || 1) - 1)}</div></div>
     </div>
     <div class="detail-list">
-      <div class="detail-item"><strong>Lesart</strong><div>Links stehen Opfer-Adressen. Jede weitere Spalte zeigt die im aktuellen Bericht nachverfolgten Hops. Exchange-Knoten sind farblich hervorgehoben, Pooling und unvollständige Auflösung bleiben sichtbar statt still zu verschwinden.</div></div>
-      <div class="detail-item"><strong>Erkannte Exchanges</strong><div>${exchanges.length ? escapeHtml(Array.from(new Set(exchanges)).join(', ')) : 'Keine belastbar erkannten Exchanges in diesem Lauf.'}</div></div>
-      <div class="detail-item"><strong>Interaktion</strong><div>Klicke auf einen Knoten oder eine Kante, um Adressen, TX-ID, Methode, Confidence und Notizen rechts im Detailpanel anzusehen.</div></div>
+      <div class="detail-item"><strong>Reading Guide</strong><div>Victim addresses appear on the left. Each subsequent column shows the hops traced in the current report. Exchange nodes are highlighted, while pooling and incomplete resolution remain visible rather than disappearing silently.</div></div>
+      <div class="detail-item"><strong>Identified Exchanges</strong><div>${exchanges.length ? escapeHtml(Array.from(new Set(exchanges)).join(', ')) : 'No corroborated exchange attribution in this run.'}</div></div>
+      <div class="detail-item"><strong>Interaction</strong><div>Click a node or edge to inspect addresses, transaction ID, method, confidence and notes in the detail panel.</div></div>
     </div>`;
 }
 
@@ -833,20 +1182,20 @@ function showNodeDetails(nodeId) {
   document.querySelector(`.graph-node-card[data-node-id="${CSS.escape(nodeId)}"]`)?.classList.add('selected');
   const reason = chainEndMeta(node.chain_end_reason);
   const chips = [
-    `<span class="detail-chip ${node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'neutral'}">${escapeHtml(node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Opfer' : node.kind === 'recipient' ? 'Empfänger' : 'Adresse')}</span>`,
-    node.is_sanctioned ? '<span class="detail-chip danger">Sanktioniert</span>' : '',
+    `<span class="detail-chip ${node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'neutral'}">${escapeHtml(node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Victim' : node.kind === 'recipient' ? 'Recipient' : 'Address')}</span>`,
+    node.is_sanctioned ? '<span class="detail-chip danger">Sanctioned</span>' : '',
     reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
-    node.has_change_output ? '<span class="detail-chip warn">Change-Output</span>' : '',
+    node.has_change_output ? '<span class="detail-chip warn">Change Output</span>' : '',
   ].filter(Boolean).join('');
   document.getElementById('graphDetails').innerHTML = `
-    <h4>Knoten-Details</h4>
+    <h4>Node Details</h4>
     <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
     <div class="detail-list">
-      <div class="detail-item"><strong>Adresse</strong><div>${escapeHtml(node.address)}</div></div>
-      <div class="detail-item"><strong>Graph-Ebene</strong><div>${node.column === 0 ? 'Opfer' : `Hop ${node.column - 1}`}</div></div>
-      <div class="detail-item"><strong>BTC-Fluss</strong><div>Eingang: ${formatBtc(node.total_in_btc)} BTC · Ausgang: ${formatBtc(node.total_out_btc)} BTC</div></div>
+      <div class="detail-item"><strong>Address</strong><div>${escapeHtml(node.address)}</div></div>
+      <div class="detail-item"><strong>Graph Level</strong><div>${node.column === 0 ? 'Victim' : `Hop ${node.column - 1}`}</div></div>
+      <div class="detail-item"><strong>BTC Flow</strong><div>Incoming: ${formatBtc(node.total_in_btc)} BTC · Outgoing: ${formatBtc(node.total_out_btc)} BTC</div></div>
       ${node.exchange ? `<div class="detail-item"><strong>Exchange</strong><div>${escapeHtml(node.exchange)}</div></div>` : ''}
-      ${node.chain_end_reason ? `<div class="detail-item"><strong>Kettenende</strong><div>${escapeHtml((chainEndMeta(node.chain_end_reason) || [node.chain_end_reason])[0])}</div></div>` : ''}
+      ${node.chain_end_reason ? `<div class="detail-item"><strong>Chain End</strong><div>${escapeHtml((chainEndMeta(node.chain_end_reason) || [node.chain_end_reason])[0])}</div></div>` : ''}
     </div>`;
 }
 
@@ -860,20 +1209,20 @@ function showEdgeDetails(edgeId) {
   const reason = chainEndMeta(edge.chain_end_reason);
   const chips = [
     `<span class="detail-chip ${edge.confidence === 'L2' ? 'accent' : 'success'}">${escapeHtml(edge.confidence_label || edge.confidence || 'L1')}</span>`,
-    edge.is_exchange_edge ? '<span class="detail-chip exchange">Exchange-Zufluss</span>' : '',
-    edge.is_sanctioned ? '<span class="detail-chip danger">Sanktionshinweis</span>' : '',
+    edge.is_exchange_edge ? '<span class="detail-chip exchange">Exchange Inflow</span>' : '',
+    edge.is_sanctioned ? '<span class="detail-chip danger">Sanctions Flag</span>' : '',
     reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
   ].filter(Boolean).join('');
   document.getElementById('graphDetails').innerHTML = `
-    <h4>Kanten-Details</h4>
+    <h4>Edge Details</h4>
     <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
     <div class="detail-list">
-      <div class="detail-item"><strong>TX-ID</strong><div>${escapeHtml(edge.txid)}</div></div>
-      <div class="detail-item"><strong>Von → Nach</strong><div>${escapeHtml(edge.from)} → ${escapeHtml(edge.to)}</div></div>
-      <div class="detail-item"><strong>Betrag</strong><div>${formatBtc(edge.amount_btc)} BTC</div></div>
-      <div class="detail-item"><strong>Methode</strong><div>${escapeHtml(edge.method || '—')}</div></div>
-      <div class="detail-item"><strong>Hop / Zeitpunkt</strong><div>Hop ${edge.hop} · ${escapeHtml(edge.timestamp || '—')}</div></div>
-      <div class="detail-item"><strong>Notizen</strong><div>${escapeHtml(edge.notes || '—')}</div></div>
+      <div class="detail-item"><strong>Transaction ID</strong><div>${escapeHtml(edge.txid)}</div></div>
+      <div class="detail-item"><strong>From → To</strong><div>${escapeHtml(edge.from)} → ${escapeHtml(edge.to)}</div></div>
+      <div class="detail-item"><strong>Amount</strong><div>${formatBtc(edge.amount_btc)} BTC</div></div>
+      <div class="detail-item"><strong>Method</strong><div>${escapeHtml(edge.method || '—')}</div></div>
+      <div class="detail-item"><strong>Hop / Timestamp</strong><div>Hop ${edge.hop} · ${escapeHtml(edge.timestamp || '—')}</div></div>
+      <div class="detail-item"><strong>Notes</strong><div>${escapeHtml(edge.notes || '—')}</div></div>
     </div>`;
 }
 
@@ -897,7 +1246,7 @@ function renderFlowGraph(graph) {
   const canvas = document.getElementById('graphCanvas');
   if (!canvas) return;
   if (!graph || !graph.nodes || !graph.nodes.length) {
-    canvas.innerHTML = '<div class="graph-empty">Keine Graph-Daten für diesen Lauf verfügbar.</div>';
+    canvas.innerHTML = '<div class="graph-empty">No graph data is available for this run.</div>';
     currentGraphModel = null;
     return;
   }
@@ -930,7 +1279,7 @@ function renderFlowGraph(graph) {
   colKeys.forEach((col, index) => {
     const x = padX + index * columnGap;
     const lane = (graph.lanes || []).find(item => Number(item.column) === col);
-    laneHtml.push(`<div class="graph-lane-label" style="left:${x}px;width:${nodeWidth}px">${escapeHtml(lane?.label || (col === 0 ? 'Opfer' : `Hop ${col - 1}`))}</div>`);
+    laneHtml.push(`<div class="graph-lane-label" style="left:${x}px;width:${nodeWidth}px">${escapeHtml(lane?.label || (col === 0 ? 'Victim' : `Hop ${col - 1}`))}</div>`);
     columns.get(col).forEach((node, rowIndex) => {
       const y = padTop + rowIndex * rowGap;
       positions[node.id] = { x, y };
@@ -992,13 +1341,13 @@ function renderFlowGraph(graph) {
 
 async function submitAndAnalyse() {
   if (!document.getElementById('confirmCheck').checked) {
-    alert('Bitte bestätigen Sie die Angaben'); return;
+    alert(t('alertConfirm')); return;
   }
   showSection('secAnalyse');
-  log('⬡ Verbinde mit lokalem Bitcoin-Node…', 'info');
+  log('⬡ Connecting to the local Bitcoin node…', 'info');
 
   try {
-    log('⬡ Sende Fallakte an Forensik-Engine…', 'info');
+    log('⬡ Sending the case file to the forensic engine…', 'info');
     const response = await fetch(`${API_BASE}/api/intel/generate-report`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1009,16 +1358,16 @@ async function submitAndAnalyse() {
       throw new Error(err.detail || 'API-Fehler');
     }
     resultData = await response.json();
-    log(`✅ ${resultData.hops_found} Hops gefunden`, 'ok');
+    log(`✅ ${resultData.hops_found} hops identified`, 'ok');
     if (resultData.exchanges_identified?.length)
       log(`✅ Exchanges: ${resultData.exchanges_identified.join(', ')}`, 'ok');
     else
-      log('⚠ Keine bekannten Exchanges in der Chain', 'warn');
-    log('✅ PDF-Report generiert', 'ok');
+      log('⚠ No corroborated exchange attribution in the traced chain', 'warn');
+    log('✅ PDF report generated', 'ok');
     setTimeout(showResult, 800);
   } catch(e) {
-    log(`❌ Fehler: ${e.message}`, 'warn');
-    log('📄 Fallakte wird heruntergeladen', 'warn');
+    log(`❌ Error: ${e.message}`, 'warn');
+    log('📄 Downloading the case file', 'warn');
     downloadFallakte();
   }
 }
@@ -1028,7 +1377,7 @@ function showResult() {
   const hops = resultData.hops || [];
   const graph = resultData.graph || { nodes: [], edges: [], stats: {} };
   document.getElementById('resultDesc').textContent =
-    `Fall ${resultData.case_id} · ${resultData.hops_found} Hops analysiert`;
+    `Case ${resultData.case_id} · ${resultData.hops_found} hops analysed`;
 
   const hopBadges = hops.map(hop => {
     const cls = hop.exchange ? 'exchange' : hop.confidence === 'L2' ? 'l2' : 'l1';
@@ -1037,18 +1386,18 @@ function showResult() {
   }).join('');
 
   document.getElementById('resultCard').innerHTML = `
-    <h3>Analyse-Ergebnis</h3>
+    <h3>Analysis Result</h3>
     <div class="result-stats">
       ${renderStatCard('Hops', resultData.hops_found, 'accent')}
-      ${renderStatCard('Graph-Knoten', graph.stats?.node_count || 0)}
+      ${renderStatCard('Graph Nodes', graph.stats?.node_count || 0)}
       ${renderStatCard('Exchanges', resultData.exchanges_identified?.length || 0, 'exchange')}
-      ${renderStatCard('Sanktionshinweise', resultData.sanctioned_addresses || 0, resultData.sanctioned_addresses ? 'exchange' : 'success')}
+      ${renderStatCard('Sanctions Flags', resultData.sanctioned_addresses || 0, resultData.sanctioned_addresses ? 'exchange' : 'success')}
     </div>
     <div style="margin-bottom:10px">${hopBadges}</div>
     <div class="graph-shell">
       <div class="graph-panel">
         <div class="graph-toolbar">
-          <h4>Transaktionsfluss</h4>
+          <h4>Transaction Flow</h4>
           <div class="graph-toolset">
             <button class="graph-toolbtn" onclick="zoomGraph(-0.1)">−</button>
             <button class="graph-toolbtn" onclick="resetGraphZoom()">Reset</button>
@@ -1057,10 +1406,10 @@ function showResult() {
           </div>
         </div>
         <div class="graph-legend">
-          <span class="legend-pill victim">Opfer</span>
-          <span class="legend-pill recipient">Empfänger / Täterpfad</span>
+          <span class="legend-pill victim">Victim</span>
+          <span class="legend-pill recipient">Recipient / Target Path</span>
           <span class="legend-pill exchange">Exchange</span>
-          <span class="legend-pill address">Weitere Adressen</span>
+          <span class="legend-pill address">Additional Addresses</span>
         </div>
         <div class="graph-viewport" id="graphViewport">
           <div class="graph-canvas" id="graphCanvas"></div>
@@ -1069,7 +1418,7 @@ function showResult() {
       <aside class="graph-details" id="graphDetails"></aside>
     </div>
     <div class="timeline" id="hopTimeline">${renderHopTimeline(hops)}</div>
-    <div style="margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--text2)">Fall-ID: ${resultData.case_id}</div>`;
+    <div style="margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--text2)">Case ID: ${resultData.case_id}</div>`;
 
   renderFlowGraph(graph);
   const url = `${API_BASE}${resultData.pdf_download_url}`;

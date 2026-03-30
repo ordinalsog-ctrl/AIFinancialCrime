@@ -128,12 +128,12 @@ class ReportRequest(BaseModel):
     case_id: Optional[str] = None
     victim_name: str
     victim_email: Optional[str] = ""
-    victim_country: Optional[str] = "Deutschland"
+    victim_country: Optional[str] = "Germany"
     incident_date: str
     discovery_date: Optional[str] = ""
     wallet_type: Optional[str] = "Hardware"
     wallet_brand: Optional[str] = ""
-    seed_digital: Optional[str] = "unbekannt"
+    seed_digital: Optional[str] = "unknown"
     description: Optional[str] = ""
     fraud_txid: str
     fraud_amount_btc: str
@@ -194,7 +194,7 @@ def _apply_manual_attributions(manual_attributions: dict[str, str]) -> None:
         compliance_email = EXCHANGE_COMPLIANCE.get(canonical, "")
         _attribution_cache[address] = {
             "exchange": canonical,
-            "label": f"{canonical} (manuell bestätigt)",
+            "label": f"{canonical} (manually confirmed)",
             "wallet_id": "",
             "source": "manual",
             "confidence": "L2",
@@ -244,40 +244,39 @@ def _build_exchanges(all_hops: list) -> list:
 
     source_notes = {
         "exchange-intel/wallet_label": (
-            "Adresse wurde ueber den BTC Exchange Intel Agent aus einer "
-            "externen Wallet-Label-Quelle einer Exchange zugeordnet."
+            "Address attribution was provided by the BTC Exchange Intel Agent "
+            "using an external wallet-label source."
         ),
         "exchange-intel/seed": (
-            "Adresse wurde ueber den lokalen BTC Exchange Intel Agent "
-            "als kuratierter Exchange-Seed identifiziert."
+            "Address attribution was provided by the local BTC Exchange Intel Agent "
+            "using a curated exchange seed."
         ),
         "exchange-intel/official_por": (
-            "Adresse wurde ueber den lokalen BTC Exchange Intel Agent "
-            "aus einem offiziellen Proof-of-Reserves-Datensatz identifiziert."
+            "Address attribution was provided by the local BTC Exchange Intel Agent "
+            "using an official proof-of-reserves dataset."
         ),
         "exchange-intel/public_dataset": (
-            "Adresse wurde ueber den BTC Exchange Intel Agent aus einem "
-            "oeffentlichen Adressdatensatz identifiziert."
+            "Address attribution was provided by the BTC Exchange Intel Agent "
+            "using a public address dataset."
         ),
         "exchange-intel/public_tagpack": (
-            "Adresse wurde ueber den BTC Exchange Intel Agent aus einem "
-            "oeffentlichen TagPack identifiziert."
+            "Address attribution was provided by the BTC Exchange Intel Agent "
+            "using a public tag pack."
         ),
         "exchange-intel/community_label": (
-            "Adresse wurde ueber den BTC Exchange Intel Agent aus einer "
-            "oeffentlichen Community-Quelle identifiziert."
+            "Address attribution was provided by the BTC Exchange Intel Agent "
+            "using a public community source."
         ),
         "exchange-intel/address_lookup": (
-            "Adresse wurde ueber den BTC Exchange Intel Agent per Live-Adressauflösung "
-            "aus einer externen Quelle identifiziert."
+            "Address attribution was provided by the BTC Exchange Intel Agent "
+            "through live address resolution against an external source."
         ),
         "local-db/EXCHANGE_INTEL": (
-            "Adresse wurde lokal aus einem zuvor verifizierten Treffer des "
-            "BTC Exchange Intel Agent geladen."
+            "Address attribution was loaded locally from a previously verified "
+            "BTC Exchange Intel Agent result."
         ),
         "manual": (
-            "Exchange-Zuordnung wurde manuell durch den forensischen Analysten "
-            "bestätigt und eingetragen."
+            "Exchange attribution was manually confirmed and entered by the analyst."
         ),
     }
 
@@ -317,7 +316,7 @@ def _build_exchanges(all_hops: list) -> list:
             ),
             "compliance_url": "",
             "btc_involved": ex_btc,
-            "note": source_notes.get(ex_source, f"Identifiziert via {ex_source}."),
+            "note": source_notes.get(ex_source, f"Identified via {ex_source}."),
         })
 
     return entries
@@ -442,12 +441,12 @@ async def generate_report(req: ReportRequest):
         conn = _get_conn()
         rpc = _get_rpc()
 
-        logger.info(f"Analyse: {case_id}, txid={req.fraud_txid[:16]}")
+        logger.info(f"Analysis: {case_id}, txid={req.fraud_txid[:16]}")
 
         # 1. Fraud-TX holen
         fraud_tx = _get_tx(req.fraud_txid, rpc)
         if not fraud_tx:
-            raise HTTPException(status_code=400, detail=f"TX nicht gefunden: {req.fraud_txid[:16]}")
+            raise HTTPException(status_code=400, detail=f"Transaction not found: {req.fraud_txid[:16]}")
 
         _save_tx_to_db(req.fraud_txid, fraud_tx, conn)
 
@@ -534,21 +533,22 @@ async def generate_report(req: ReportRequest):
         hop0_has_exchange = bool(direct_exchanges or recipient_exchange_info)
         hop0_exchange = recipient_exchange_info or (next(iter(direct_exchanges.values())) if direct_exchanges else None)
 
-        hop0_notes = (f"{len(req.victim_addresses)} Opfer-Adresse(n). "
-                      f"Gestohlener Betrag: {req.fraud_amount_btc} BTC.")
+        hop0_notes = (
+            f"{len(req.victim_addresses)} victim address(es). "
+            f"Stolen amount: {req.fraud_amount_btc} BTC."
+        )
         if recipient_exchange_info:
             hop0_notes += (
-                f" Empfaenger-Adresse direkt als Exchange erkannt: {recipient_exchange_info['exchange']}. "
-                "Nachgelagerte Knoten werden weiterhin informativ ausgewiesen, "
-                "ohne die belastbare Exchange-Zuordnung an diesem Punkt zu relativieren."
+                f" Recipient address directly identified as exchange infrastructure: {recipient_exchange_info['exchange']}. "
+                "Subsequent nodes remain visible for context, without weakening the corroborated exchange attribution at this point."
             )
         elif hop0_has_exchange:
             ex_names = ", ".join(set(v["exchange"] for v in direct_exchanges.values()))
-            hop0_notes += f" Direkte Exchange-Outputs erkannt: {ex_names}."
+            hop0_notes += f" Direct exchange outputs identified: {ex_names}."
 
         hop0 = {
             "hop": 0,
-            "label": f"Diebstahl → {hop0_exchange['exchange']}" if hop0_exchange else "Diebstahl — Konsolidierung",
+            "label": f"Theft → {hop0_exchange['exchange']}" if hop0_exchange else "Theft — Consolidation",
             "txid": req.fraud_txid,
             "block": hop0_block or 0,
             "timestamp": hop0_ts if hop0_ts != "—" else req.incident_date,
@@ -556,11 +556,11 @@ async def generate_report(req: ReportRequest):
             "to_addresses": to_addresses_hop0,
             "fee_btc": None,
             "confidence": "L2" if hop0_has_exchange else "L1",
-            "confidence_label": "Forensisch belegt" if hop0_has_exchange else "Mathematisch bewiesen",
+            "confidence_label": "Forensically corroborated" if hop0_has_exchange else "Mathematically proven",
             "method": (
-                f"Direkte Exchange-Attribution ({hop0_exchange.get('label', '')})"
+                f"Direct exchange attribution ({hop0_exchange.get('label', '')})"
                 if hop0_exchange
-                else "Direkter UTXO-Link"
+                else "Direct UTXO link"
             ),
             "notes": hop0_notes,
             "is_sanctioned": any(c.get("is_sanctioned") for c in _attribution_cache.values()),
@@ -606,7 +606,7 @@ async def generate_report(req: ReportRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Fehler {case_id}: {e}", exc_info=True)
+        logger.error(f"Error {case_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

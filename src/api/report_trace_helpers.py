@@ -55,7 +55,7 @@ def trace_victim_chain(
 
         current_tx = get_tx(current_txid, rpc)
         if not current_tx:
-            logger.info("  TRACER: TX nicht gefunden, skip")
+            logger.info("  TRACER: TX not found, skip")
             continue
         save_tx_to_db(current_txid, current_tx, conn)
 
@@ -70,28 +70,28 @@ def trace_victim_chain(
                 break
 
         if vout_idx is None:
-            logger.info(f"  TRACER: vout_idx None für {current_address[:20]}, skip")
+            logger.info(f"  TRACER: vout_idx None for {current_address[:20]}, skip")
             continue
 
         is_initial_step = current_address == recipient_address and current_txid == fraud_txid
         cached_attr = attribution_cache.get(current_address, {})
         if is_acam_burdenable_attribution(cached_attr) and not is_initial_step:
             logger.info(
-                f"  TRACER: EARLY EXIT — {current_address[:20]} im Cache als "
+                f"  TRACER: EARLY EXIT — {current_address[:20]} cached as "
                 f"{cached_attr.get('exchange')}"
             )
             if hops:
                 for hop in reversed(hops):
                     if any(a == current_address for a, _ in hop.get("to_addresses", [])):
                         hop["confidence"] = "L2"
-                        hop["confidence_label"] = "Forensisch belegt"
+                        hop["confidence_label"] = "Forensically corroborated"
                         hop["exchange"] = cached_attr["exchange"]
                         hop["exchange_wallet_id"] = cached_attr.get("wallet_id", "")
                         hop["exchange_source"] = cached_attr.get("source", "")
-                        hop["label"] = f"Exchange-Einzahlung -> {cached_attr['exchange']}"
-                        hop["method"] = f"Downstream-Analyse ({cached_attr.get('label', '')})"
+                        hop["label"] = f"Exchange deposit -> {cached_attr['exchange']}"
+                        hop["method"] = f"Downstream analysis ({cached_attr.get('label', '')})"
                         hop["notes"] += (
-                            f" Adresse als {cached_attr['exchange']} Deposit-Adresse identifiziert."
+                            f" Address identified as {cached_attr['exchange']} deposit infrastructure."
                         )
                         hop["chain_end_reason"] = "exchange"
                         break
@@ -109,15 +109,15 @@ def trace_victim_chain(
                 for hop in reversed(hops):
                     if any(a == current_address for a, _ in hop.get("to_addresses", [])):
                         hop["confidence"] = "L2"
-                        hop["confidence_label"] = "Forensisch belegt"
+                        hop["confidence_label"] = "Forensically corroborated"
                         hop["exchange"] = check["exchange"]
                         hop["exchange_wallet_id"] = check.get("wallet_id", "")
                         hop["exchange_source"] = check.get("source", "")
-                        hop["label"] = f"Exchange-Einzahlung -> {check['exchange']}"
+                        hop["label"] = f"Exchange deposit -> {check['exchange']}"
                         hop["method"] = (
-                            f"Exchange Intel Agent Attribution ({check.get('label', '')})"
+                            f"Exchange Intel Agent attribution ({check.get('label', '')})"
                         )
-                        hop["notes"] += f" Adresse als {check['exchange']} identifiziert."
+                        hop["notes"] += f" Address identified as {check['exchange']}."
                         hop["chain_end_reason"] = "exchange"
                         break
             else:
@@ -126,19 +126,18 @@ def trace_victim_chain(
                         if any(a == current_address for a, _ in hop.get("to_addresses", [])):
                             hop["chain_end_reason"] = "unspent"
                             hop["notes"] += (
-                                f" UTXO an {current_address[:20]}... ist noch nicht ausgegeben "
-                                f"(Stand: Analyse-Zeitpunkt). Mittel möglicherweise noch verfügbar."
+                                f" UTXO at {current_address[:20]}... remains unspent "
+                                f"(as of the analysis timestamp). Funds may still be recoverable."
                             )
                             break
             continue
         if spend_state in {"spent_unresolved", "unknown"}:
             resolution_note = (
-                " Der Output ist nachweislich weiterverwendet, aber die ausgebende TX konnte "
-                "mit der aktuellen Spend-Aufloesung nicht eindeutig geladen werden."
+                " The output was demonstrably spent, but the spending transaction could not be loaded conclusively "
+                "with the current spend-resolution path."
                 if spend_state == "spent_unresolved"
                 else
-                " Die Spend-Aufloesung war technisch unvollstaendig; der naechste Hop konnte nicht "
-                "zuverlaessig ermittelt werden."
+                " Spend resolution was technically incomplete; the next hop could not be determined reliably."
             )
             if hops:
                 for hop in reversed(hops):
@@ -151,7 +150,7 @@ def trace_victim_chain(
                 hops.append(
                     {
                         "hop": hop_idx,
-                        "label": "Weiterleitung technisch nicht vollstaendig aufgeloest",
+                        "label": "Forwarding path not fully resolved",
                         "txid": current_txid,
                         "block": block_height or 0,
                         "timestamp": ts_str,
@@ -159,12 +158,12 @@ def trace_victim_chain(
                         "to_addresses": [(current_address, actual_from_amount)],
                         "fee_btc": None,
                         "confidence": "L1",
-                        "confidence_label": "Mathematisch bewiesen",
-                        "method": "Direkter UTXO-Link bis Empfaenger; Spend-Aufloesung unvollstaendig",
+                        "confidence_label": "Mathematically proven",
+                        "method": "Direct UTXO link to recipient; spend resolution incomplete",
                         "notes": (
-                            "Der Eingang auf diese Adresse ist on-chain bewiesen."
+                            "Receipt by this address is proven on-chain."
                             + resolution_note
-                            + " Der Bericht ist an dieser Stelle technisch unvollstaendig und darf nicht als unspent gelesen werden."
+                            + " The report is technically incomplete at this point and must not be interpreted as an unspent conclusion."
                         ),
                         "is_sanctioned": False,
                         "chain_end_reason": "lookup_incomplete",
@@ -181,7 +180,7 @@ def trace_victim_chain(
         spending_tx = get_tx(spending_txid, rpc)
         if not spending_tx:
             logger.warning(
-                f"  TRACER: spending_tx {spending_txid[:16]} konnte nicht geladen werden, skip"
+                f"  TRACER: spending_tx {spending_txid[:16]} could not be loaded, skip"
             )
             continue
         save_tx_to_db(spending_txid, spending_tx, conn)
@@ -230,29 +229,29 @@ def trace_victim_chain(
 
         if exchange_hits:
             ex_names = ", ".join(set(c["exchange"] for c in exchange_hits.values()))
-            label = f"Exchange-Einzahlung -> {ex_names}"
+            label = f"Exchange deposit -> {ex_names}"
             first_ex = next(iter(exchange_hits.values()))
-            method = f"Exchange Intel Agent Attribution ({first_ex.get('label', '')})"
-            notes = f"Gestohlene Mittel fliessen zu {ex_names}. Identifiziert via {first_ex['source']}."
+            method = f"Exchange Intel Agent attribution ({first_ex.get('label', '')})"
+            notes = f"Stolen funds flow into {ex_names}. Identified via {first_ex['source']}."
             confidence = "L2"
         elif pooling_detected:
-            label = "Konsolidierung — Weiterleitung nicht eindeutig zuordenbar"
-            method = "Direkter UTXO-Link (Eingang), Pooling erkannt (Ausgang)"
+            label = "Consolidation — forwarding path no longer uniquely attributable"
+            method = "Direct UTXO link (input), pooling detected (output)"
             notes = (
-                f"Eingehender Betrag {actual_from_amount:.8f} BTC wurde mit Fremdmitteln "
-                f"konsolidiert (Output: {max_output:.8f} BTC). "
-                f"Mathematische Zuordnung der gestohlenen Mittel ab diesem Punkt nicht mehr möglich. "
-                f"Wahrscheinlich Exchange-internes Wallet oder Mixing-Service."
+                f"Incoming amount {actual_from_amount:.8f} BTC was consolidated with third-party funds "
+                f"(output: {max_output:.8f} BTC). "
+                f"Mathematical attribution of the stolen funds is no longer possible beyond this point. "
+                f"This is consistent with exchange-internal consolidation or a mixing workflow."
             )
             confidence = "L2"
         else:
-            label = "UTXO Weiterleitung"
-            method = "Direkter UTXO-Link"
-            notes = "Automatisch erkannt via Pi-Node + Blockstream."
+            label = "UTXO forwarding"
+            method = "Direct UTXO link"
+            notes = "Automatically identified via the local node and Blockstream."
             confidence = "L1"
 
         if sanctioned:
-            notes += " SANKTIONIERTE ADRESSE (OFAC SDN)."
+            notes += " SANCTIONED ADDRESS (OFAC SDN)."
 
         if exchange_hits:
             chain_end_reason = "exchange"
@@ -271,7 +270,7 @@ def trace_victim_chain(
             "to_addresses": display_outputs,
             "fee_btc": None,
             "confidence": confidence,
-            "confidence_label": "Forensisch belegt" if confidence == "L2" else "Mathematisch bewiesen",
+            "confidence_label": "Forensically corroborated" if confidence == "L2" else "Mathematically proven",
             "method": method,
             "notes": notes,
             "is_sanctioned": sanctioned,
@@ -288,7 +287,7 @@ def trace_victim_chain(
 
         hops.append(hop)
         logger.info(
-            f"  TRACER: HOP {hop_idx} gebaut: {label[:50]}, "
+            f"  TRACER: HOP {hop_idx} built: {label[:50]}, "
             f"exchange_hits={list(exchange_hits.keys())[:3]}, pooling={pooling_detected}"
         )
 
@@ -301,7 +300,7 @@ def trace_victim_chain(
                     )
                     queue.append((spending_txid, addr, btc, hop_idx + 1))
         else:
-            logger.info("  TRACER: POOLING — keine Weiterleitung")
+            logger.info("  TRACER: POOLING — no further forwarding")
 
     seen = set()
     unique_hops = []
