@@ -256,11 +256,11 @@
     <div class="field-grid">
       <div class="field">
         <label>Datum des Diebstahls <span class="required">*</span></label>
-        <input type="text" id="incidentDate" placeholder="12.12.2025 09:44 UTC">
+        <input type="text" id="incidentDate" placeholder="TT.MM.JJJJ HH:MM UTC">
       </div>
       <div class="field">
         <label>Datum der Entdeckung</label>
-        <input type="text" id="discoveryDate" placeholder="19.12.2025">
+        <input type="text" id="discoveryDate" placeholder="TT.MM.JJJJ">
       </div>
       <div class="field span2">
         <label>Wallet-Typ <span class="required">*</span></label>
@@ -272,7 +272,7 @@
       </div>
       <div class="field">
         <label>Wallet Name <span class="required">*</span></label>
-        <input type="text" id="walletBrand" placeholder="z.B. Ledger Nano X">
+        <input type="text" id="walletBrand" placeholder="optional">
       </div>
       <div class="field">
         <label>Seed-Phrase digital gespeichert?</label>
@@ -342,11 +342,11 @@
     <div class="field-grid" style="margin-top:16px">
       <div class="field">
         <label>Gestohlener Betrag (BTC) <span class="required">*</span></label>
-        <input type="text" id="fraudAmount" class="mono-input" placeholder="0.41240620">
+        <input type="text" id="fraudAmount" class="mono-input" placeholder="auto oder manuell">
       </div>
       <div class="field">
         <label>EUR-Wert (ca.)</label>
-        <input type="text" id="fraudAmountEur" placeholder="~38.000 EUR">
+        <input type="text" id="fraudAmountEur" placeholder="optional">
       </div>
     </div>
 
@@ -1018,7 +1018,7 @@ async function submitAndAnalyse() {
     setTimeout(showResult, 800);
   } catch(e) {
     log(`❌ Fehler: ${e.message}`, 'warn');
-    log('📄 Fallakte wird heruntergeladen — manuell: python3 scripts/generate_case_report.py --case '+caseId, 'warn');
+    log('📄 Fallakte wird heruntergeladen', 'warn');
     downloadFallakte();
   }
 }

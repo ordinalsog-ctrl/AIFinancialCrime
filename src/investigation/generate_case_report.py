@@ -66,6 +66,34 @@ PAGE_W = A4[0]
 PAGE_H = A4[1]
 
 
+def _case_text(key: str, fallback: str = "—") -> str:
+    value = CASE.get(key)
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text or fallback
+
+
+def _wallet_label() -> str:
+    wallet = _case_text("wallet_type", "")
+    return wallet or "Wallet"
+
+
+def _btc_label(value) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "—"
+    return text if "BTC" in text.upper() else f"{text} BTC"
+
+
+def _amount_label() -> str:
+    btc = _btc_label(CASE.get("fraud_amount"))
+    eur = _case_text("fraud_amount_eur", "")
+    if eur and eur != "—":
+        return f"{btc} ({eur})"
+    return btc
+
+
 def _styles():
     s = {}
     s["h1"] = ParagraphStyle("h1", fontSize=13, fontName="Helvetica-Bold",
@@ -137,7 +165,7 @@ def _cover(styles):
     story.append(Spacer(1, 8))
 
     subtitle_data = [[
-        Paragraph(f"Wallet-Diebstahl — {CASE.get('wallet_type', 'Hardware Wallet')}", ParagraphStyle(
+        Paragraph(f"Wallet-Diebstahl — {_wallet_label()}", ParagraphStyle(
             "subtitle", fontSize=11, fontName="Helvetica",
             textColor=C_WHITE, alignment=TA_CENTER
         ))
@@ -153,13 +181,13 @@ def _cover(styles):
 
     # Fall-Metadaten
     meta = [
-        ["Fall-ID",           CASE["case_id"]],
-        ["Geschädigter",      CASE["victim_name"]],
-        ["Schadensdatum",     CASE["incident_date"]],
-        ["Entdeckungsdatum",  CASE["discovery_date"]],
-        ["Schadensbetrag",    f"{CASE['fraud_amount']} ({CASE['fraud_amount_eur']})"],
-        ["Wallet-Typ",        CASE["wallet_type"]],
-        ["Berichtsdatum",     CASE["generated_at"]],
+        ["Fall-ID",           _case_text("case_id")],
+        ["Geschädigter",      _case_text("victim_name")],
+        ["Schadensdatum",     _case_text("incident_date")],
+        ["Entdeckungsdatum",  _case_text("discovery_date")],
+        ["Schadensbetrag",    _amount_label()],
+        ["Wallet-Typ",        _wallet_label()],
+        ["Berichtsdatum",     _case_text("generated_at")],
     ]
     meta_tbl = Table(meta, colWidths=[45*mm, PAGE_W - 2*MARGIN - 45*mm])
     meta_tbl.setStyle(TableStyle([
@@ -178,15 +206,14 @@ def _cover(styles):
     # Zusammenfassung
     story.append(Paragraph("Zusammenfassung", styles["h1"]))
     story += _hr()
-    exchange_names = " und ".join(f"<b>{e['name']}</b>" for e in EXCHANGES_IDENTIFIED) if EXCHANGES_IDENTIFIED else "<b>unbekannte Empfänger</b>"
-    input_count = len(HOPS[0]["from_addresses"]) if HOPS else 0
+    exchange_names = " und ".join(f"<b>{e['name']}</b>" for e in EXCHANGES_IDENTIFIED) if EXCHANGES_IDENTIFIED else "<b>keine identifizierte Exchange</b>"
+    hop_count = max(len(HOPS) - 1, 0)
     story.append(Paragraph(
-        f"Am {CASE['incident_date']} wurden ohne Autorisierung des Inhabers "
-        f"<b>{CASE['fraud_amount']}</b> Bitcoin vom vollständigen Bestand einer "
-        f"{CASE['wallet_type']} entwendet. Die gestohlenen Mittel wurden in einer einzigen "
-        f"Transaktion ({input_count} Inputs → 1 Output) konsolidiert und anschließend "
-        f"durch Splitting auf mehrere Pfade aufgeteilt (Layering). Die Blockchain-Analyse "
-        f"identifiziert {exchange_names} als Ziel-Exchanges.",
+        f"Der vorliegende Bericht dokumentiert eine gemeldete unautorisierte Abfluss-Transaktion "
+        f"vom {_case_text('incident_date')} mit einem analysierten Volumen von <b>{_amount_label()}</b>. "
+        f"Im ausgewerteten Pfad wurden <b>{hop_count}</b> Folge-Hop(s) nach der Ursprungstransaktion "
+        f"forensisch dokumentiert. Als derzeit identifizierte Ziel-Exchange(s) weist die Analyse "
+        f"{exchange_names} aus.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
@@ -692,12 +719,12 @@ def _recommended_actions(styles):
              "Anzeige bei BaFin (Deutschland) oder zuständiger nationaler Finanzaufsicht",
              "Europol EC3 Meldung: https://www.europol.europa.eu/report-a-crime",
              "Rechtsanwalt mit Cryptocurrency-Erfahrung hinzuziehen",
-             f"Alle {CASE.get('wallet_type', 'Wallet-Geräte')} als kompromittiert betrachten — neue Seed-Phrase generieren",
+             "Betroffene Wallet-/Seed-Umgebung als kompromittiert behandeln und neue Zugangsdaten beziehungsweise Seed-Phrase erzeugen",
          ]),
         ("MITTELFRISTIG",
          C_SUCCESS,
          [
-             "Antwort der Exchanges abwarten (typisch: 2-4 Wochen)",
+             "Antwort der Exchanges abwarten und dokumentieren",
              "Bei Kontoeinfrierung: Strafverfolgung koordinieren",
              "Zivilrechtliche Schritte prüfen falls Exchange kooperiert",
          ]),
@@ -767,8 +794,8 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(Paragraph(
         f"hiermit beantrage ich die sofortige Einfrierung aller Konten und Vermögenswerte "
         f"die mit den unten genannten Bitcoin-Adressen in Verbindung stehen. "
-        f"Am {CASE['incident_date']} wurden <b>{CASE['fraud_amount']}</b> Bitcoin "
-        f"ohne meine Autorisierung von meiner Ledger Hardware Wallet entwendet. "
+        f"Am {_case_text('incident_date')} wurden <b>{_btc_label(CASE.get('fraud_amount'))}</b> "
+        f"ohne meine Autorisierung aus meiner Wallet-Umgebung abgezogen. "
         f"Die forensische Blockchain-Analyse (beigefügt) belegt, dass ein Teil dieser "
         f"Mittel über Ihre Plattform geflossen ist.",
         styles["body"]
@@ -801,8 +828,8 @@ def _freeze_request(exchange_data, styles, output_path):
     # Ursprungs-TX
     _fraud_txid = HOPS[0]["txid"] if HOPS else ""
     _fraud_block = str(HOPS[0].get("block", "")) if HOPS else ""
-    _fraud_ts = HOPS[0].get("timestamp", CASE.get("incident_date", "")) if HOPS else CASE.get("incident_date", "")
-    _fraud_amount = CASE.get("fraud_amount", "")
+    _fraud_ts = HOPS[0].get("timestamp", _case_text("incident_date", "")) if HOPS else _case_text("incident_date", "")
+    _fraud_amount = _btc_label(CASE.get("fraud_amount"))
     story.append(Paragraph("Ursprungstransaktion (Diebstahl):", styles["h2"]))
     tx_rows = [
         ["TX-ID",       _fraud_txid],

@@ -1099,6 +1099,13 @@ def _generate_pdf(case_id: str, req: ReportRequest, hop0: dict, hops: list, exch
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
 
+    wallet_brand = (req.wallet_brand or "").strip()
+    wallet_type = (req.wallet_type or "").strip()
+    if wallet_brand and wallet_type:
+        wallet_label = f"{wallet_brand} ({wallet_type})"
+    else:
+        wallet_label = wallet_brand or wallet_type or "—"
+
     gcr.CASE = {
         "case_id":          case_id,
         "victim_name":      req.victim_name,
@@ -1106,8 +1113,8 @@ def _generate_pdf(case_id: str, req: ReportRequest, hop0: dict, hops: list, exch
         "incident_date":    req.incident_date,
         "discovery_date":   req.discovery_date or "",
         "fraud_amount":     req.fraud_amount_btc,
-        "fraud_amount_eur": req.fraud_amount_eur or "—",
-        "wallet_type":      f"{req.wallet_brand} ({req.wallet_type})",
+        "fraud_amount_eur": (req.fraud_amount_eur or "").strip(),
+        "wallet_type":      wallet_label,
         "generated_at":     datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     }
     gcr.HOPS = [hop0] + hops
