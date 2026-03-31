@@ -377,18 +377,14 @@ def _generate_pdf(case_id: str, req: ReportRequest, hop0: dict, hops: list, exch
 
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
-    pdf_path = str(OUTPUT_DIR / f"{case_id}_Forensischer_Analysebericht.pdf")
+    pdf_path = str(OUTPUT_DIR / f"{case_id}_Forensic_Analysis_Report.pdf")
     with open(pdf_path, "wb") as f:
         f.write(buf.getvalue())
     return pdf_path
 
 
 def _generate_freeze_requests(case_id: str, exchanges: list) -> list:
-    """Generiert EIN Freeze-Request-PDF pro Exchange (gruppiert nach Name).
-
-    Wenn mehrere Adressen zur selben Exchange gehören (z.B. 2x Huobi),
-    wird EIN Freeze-Request mit allen Adressen und dem Gesamtbetrag erstellt.
-    """
+    """Generate one freeze-request PDF per exchange, grouped by exchange name."""
     import src.investigation.generate_case_report as gcr
     styles = gcr._styles()
 
@@ -401,10 +397,9 @@ def _generate_freeze_requests(case_id: str, exchanges: list) -> list:
         else:
             grouped[name]["btc_involved"] += ex.get("btc_involved", 0)
             grouped[name]["all_addresses"].append((ex["address"], ex["btc_involved"]))
-            # Mehrere Adressen in der Notiz erwähnen
             grouped[name]["note"] = (
-                f"{len(grouped[name]['all_addresses'])} Deposit-Adressen dieser Exchange identifiziert. "
-                f"Gesamtbetrag: {grouped[name]['btc_involved']:.8f} BTC."
+                f"{len(grouped[name]['all_addresses'])} deposit address(es) attributed to this exchange. "
+                f"Total amount: {grouped[name]['btc_involved']:.8f} BTC."
             )
 
     paths = []
@@ -625,17 +620,20 @@ def _get_conn():
 
 @router_report.get("/report-pdf/{case_id}")
 async def download_report(case_id: str):
-    path = OUTPUT_DIR / f"{case_id}_Forensischer_Analysebericht.pdf"
+    path = OUTPUT_DIR / f"{case_id}_Forensic_Analysis_Report.pdf"
+    legacy_path = OUTPUT_DIR / f"{case_id}_Forensischer_Analysebericht.pdf"
+    if not path.exists() and legacy_path.exists():
+        path = legacy_path
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Report nicht gefunden")
+        raise HTTPException(status_code=404, detail="Report not found")
     return FileResponse(str(path), media_type="application/pdf",
-                        filename=f"{case_id}_Analysebericht.pdf")
+                        filename=f"{case_id}_Forensic_Analysis_Report.pdf")
 
 
 @router_report.get("/freeze-pdf/{case_id}/{exchange}")
 async def download_freeze(case_id: str, exchange: str):
     path = OUTPUT_DIR / f"{case_id}_Freeze_Request_{exchange}.pdf"
     if not path.exists():
-        raise HTTPException(status_code=404, detail="Freeze Request nicht gefunden")
+        raise HTTPException(status_code=404, detail="Freeze request not found")
     return FileResponse(str(path), media_type="application/pdf",
                         filename=f"{case_id}_Freeze_{exchange}.pdf")

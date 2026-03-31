@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-AIFinancialCrime — Fall-Report Generator
-=========================================
-Dieses Modul wird NUR als Bibliothek von report_endpoint.py genutzt.
-ALLE Daten (CASE, HOPS, EXCHANGES_IDENTIFIED) werden vom Endpoint
-vor der PDF-Generierung dynamisch gesetzt.
-Hardcoded Werte hier dienen NUR als leere Vorlage / Typ-Referenz.
-
-NICHT direkt ausführen. Nur über den API-Endpoint nutzen.
+AIFinancialCrime - report generator
+===================================
+This module is intended to be used by report_endpoint.py.
+All runtime data (CASE, HOPS, EXCHANGES_IDENTIFIED) is injected before PDF
+generation. The defaults in this module are placeholders only.
 """
 
 import hashlib
@@ -127,17 +124,17 @@ def _page_template(case_id, generated_at):
         canvas.rect(0, PAGE_H - 12*mm, PAGE_W, 12*mm, fill=1, stroke=0)
         canvas.setFillColor(C_WHITE)
         canvas.setFont("Helvetica-Bold", 8)
-        canvas.drawString(MARGIN, PAGE_H - 8*mm, "AIFinancialCrime — Forensischer Blockchain-Analysebericht")
+        canvas.drawString(MARGIN, PAGE_H - 8*mm, "AIFinancialCrime - Forensic Blockchain Analysis Report")
         canvas.setFont("Helvetica", 7)
-        canvas.drawRightString(PAGE_W - MARGIN, PAGE_H - 8*mm, f"Fall: {case_id}")
+        canvas.drawRightString(PAGE_W - MARGIN, PAGE_H - 8*mm, f"Case: {case_id}")
         # Footer
         canvas.setFillColor(C_LIGHT)
         canvas.rect(0, 0, PAGE_W, 10*mm, fill=1, stroke=0)
         canvas.setFillColor(C_GREY)
         canvas.setFont("Helvetica", 7)
         canvas.drawString(MARGIN, 4*mm,
-                          f"Generiert: {generated_at} | Vertraulich — Nur für Strafverfolgung und Compliance")
-        canvas.drawRightString(PAGE_W - MARGIN, 4*mm, f"Seite {doc.page}")
+                          f"Generated: {generated_at} | Confidential - For law enforcement and compliance use only")
+        canvas.drawRightString(PAGE_W - MARGIN, 4*mm, f"Page {doc.page}")
         canvas.restoreState()
     return on_page
 
@@ -150,7 +147,7 @@ def _cover(styles):
     story = []
     # Titel-Block
     title_data = [[
-        Paragraph("FORENSISCHER BLOCKCHAIN-ANALYSEBERICHT", ParagraphStyle(
+        Paragraph("FORENSIC BLOCKCHAIN ANALYSIS REPORT", ParagraphStyle(
             "title", fontSize=16, fontName="Helvetica-Bold",
             textColor=C_WHITE, alignment=TA_CENTER
         ))
@@ -165,7 +162,7 @@ def _cover(styles):
     story.append(Spacer(1, 8))
 
     subtitle_data = [[
-        Paragraph(f"Wallet-Diebstahl — {_wallet_label()}", ParagraphStyle(
+        Paragraph(f"Wallet Theft - {_wallet_label()}", ParagraphStyle(
             "subtitle", fontSize=11, fontName="Helvetica",
             textColor=C_WHITE, alignment=TA_CENTER
         ))
@@ -181,13 +178,13 @@ def _cover(styles):
 
     # Fall-Metadaten
     meta = [
-        ["Fall-ID",           _case_text("case_id")],
-        ["Geschädigter",      _case_text("victim_name")],
-        ["Schadensdatum",     _case_text("incident_date")],
-        ["Entdeckungsdatum",  _case_text("discovery_date")],
-        ["Schadensbetrag",    _amount_label()],
-        ["Wallet-Typ",        _wallet_label()],
-        ["Berichtsdatum",     _case_text("generated_at")],
+        ["Case ID",           _case_text("case_id")],
+        ["Reporting Party",   _case_text("victim_name")],
+        ["Date of Theft",     _case_text("incident_date")],
+        ["Date of Discovery", _case_text("discovery_date")],
+        ["Loss Amount",       _amount_label()],
+        ["Wallet Type",       _wallet_label()],
+        ["Report Date",       _case_text("generated_at")],
     ]
     meta_tbl = Table(meta, colWidths=[45*mm, PAGE_W - 2*MARGIN - 45*mm])
     meta_tbl.setStyle(TableStyle([
@@ -203,23 +200,21 @@ def _cover(styles):
     story.append(meta_tbl)
     story.append(Spacer(1, 12))
 
-    # Zusammenfassung
-    story.append(Paragraph("Zusammenfassung", styles["h1"]))
+    story.append(Paragraph("Executive Summary", styles["h1"]))
     story += _hr()
-    exchange_names = " und ".join(f"<b>{e['name']}</b>" for e in EXCHANGES_IDENTIFIED) if EXCHANGES_IDENTIFIED else "<b>keine identifizierte Exchange</b>"
+    exchange_names = ", ".join(f"<b>{e['name']}</b>" for e in EXCHANGES_IDENTIFIED) if EXCHANGES_IDENTIFIED else "<b>no identified exchange</b>"
     hop_count = max(len(HOPS) - 1, 0)
     story.append(Paragraph(
-        f"Der vorliegende Bericht dokumentiert eine gemeldete unautorisierte Abfluss-Transaktion "
-        f"vom {_case_text('incident_date')} mit einem analysierten Volumen von <b>{_amount_label()}</b>. "
-        f"Im ausgewerteten Pfad wurden <b>{hop_count}</b> Folge-Hop(s) nach der Ursprungstransaktion "
-        f"forensisch dokumentiert. Als derzeit identifizierte Ziel-Exchange(s) weist die Analyse "
-        f"{exchange_names} aus.",
+        f"This report documents a reported unauthorized outflow transaction dated "
+        f"{_case_text('incident_date')} involving an analyzed amount of <b>{_amount_label()}</b>. "
+        f"The traced path contains <b>{hop_count}</b> downstream hop(s) after the originating transaction. "
+        f"The analysis currently identifies the following exchange endpoint(s): "
+        f"{exchange_names}.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
 
-    # Exchange-Übersicht
-    rows = [["Exchange", "Adresse", "Confidence", "BTC"]]
+    rows = [["Exchange", "Address", "Confidence", "BTC"]]
     for ex in EXCHANGES_IDENTIFIED:
         rows.append([
             Paragraph(f"<b>{ex['name']}</b>", styles["body_bold"]),
@@ -248,26 +243,26 @@ def _cover(styles):
 
 
 def _methodology(styles):
-    story = [Paragraph("1. Methodik & Confidence-Framework", styles["h1"])]
+    story = [Paragraph("1. Methodology & Confidence Framework", styles["h1"])]
     story += _hr()
     story.append(Paragraph(
-        "Die Analyse basiert ausschließlich auf on-chain verifizierbaren Daten. "
-        "Alle Behauptungen sind durch Transaktions-IDs und Block-Höhen belegbar. "
-        "Das folgende Confidence-Framework wird verwendet:",
+        "This analysis is based exclusively on on-chain verifiable data. "
+        "All findings are traceable through transaction identifiers and block heights. "
+        "The following confidence framework is applied:",
         styles["body"]
     ))
     story.append(Spacer(1, 6))
 
     conf_rows = [
-        ["Level", "Bezeichnung", "Kriterien"],
-        ["L1", "Mathematisch bewiesen",
-         "Direkter UTXO-Link — kryptographisch unwiderlegbar"],
-        ["L2", "Forensisch belegt",
-         "Direkte Exchange-Attribution aus validierter Quelle (z. B. offizieller Seed, lokaler Intel-Agent, WalletExplorer)"],
-        ["L3", "Hinweis (nicht beweiskräftig)",
-         "Downstream-, Muster- oder Kontext-Hinweis — nicht belastend und nicht im Report"],
-        ["L4", "Spekulativ",
-         "Heuristisch, keine direkte Verbindung — nicht im Report"],
+        ["Level", "Classification", "Criteria"],
+        ["L1", "Mathematically proven",
+         "Direct UTXO link - cryptographically conclusive"],
+        ["L2", "Forensically corroborated",
+         "Direct exchange attribution from a validated source (for example official reserve data, local intel agent, or WalletExplorer)"],
+        ["L3", "Indicative only",
+         "Downstream, pattern-based, or contextual signal - not burden-bearing and excluded from the report"],
+        ["L4", "Speculative",
+         "Heuristic only, without a direct connection - excluded from the report"],
     ]
     conf_tbl = Table(conf_rows, colWidths=[12*mm, 42*mm, PAGE_W - 2*MARGIN - 54*mm])
     conf_tbl.setStyle(TableStyle([
@@ -289,9 +284,8 @@ def _methodology(styles):
     story.append(conf_tbl)
     story.append(Spacer(1, 6))
     story.append(Paragraph(
-        "Dieser Bericht enthält ausschließlich L1- und L2-Befunde. "
-        "L3/L4-Beobachtungen wurden bewusst ausgeschlossen um die "
-        "Gerichtsverwertbarkeit zu gewährleisten.",
+        "This report contains L1 and L2 findings only. "
+        "L3 and L4 observations are intentionally excluded in order to preserve evidentiary reliability.",
         styles["small"]
     ))
     return story
@@ -302,12 +296,12 @@ def _transaction_graph(styles):
     from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle, PolyLine
     from reportlab.graphics import renderPDF
 
-    story = [Paragraph("2. Transaktionsgraph — Übersicht", styles["h1"])]
+    story = [Paragraph("3. Transaction Graph - Overview", styles["h1"])]
     story += _hr()
     story.append(Paragraph(
-        "Der folgende Graph zeigt den vollständigen Transaktionspfad der gestohlenen "
-        "Bitcoin. Rote Knoten = Täter-Adressen, grüne Knoten = identifizierte Exchanges, "
-        "graue Knoten = Intermediäre. Jede Kante repräsentiert eine on-chain Transaktion.",
+        "The following graph shows the traced transaction path of the stolen "
+        "bitcoin. Red nodes indicate suspect-controlled addresses, green nodes indicate identified exchanges, "
+        "and grey nodes indicate intermediaries. Each edge represents an on-chain transaction.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
@@ -318,10 +312,10 @@ def _transaction_graph(styles):
     d = Drawing(W, H)
 
     # Farben
-    COL_VICTIM   = colors.HexColor("#C0392B")   # rot — Opfer
-    COL_THIEF    = colors.HexColor("#E67E22")   # orange — Täter
-    COL_INTER    = colors.HexColor("#7F8C8D")   # grau — Intermediär
-    COL_EXCHANGE = colors.HexColor("#1E8449")   # grün — Exchange
+    COL_VICTIM   = colors.HexColor("#C0392B")
+    COL_THIEF    = colors.HexColor("#E67E22")
+    COL_INTER    = colors.HexColor("#7F8C8D")
+    COL_EXCHANGE = colors.HexColor("#1E8449")
     COL_EDGE     = colors.HexColor("#2C3E50")
     COL_WHITE    = colors.white
     COL_LIGHT    = colors.HexColor("#ECF0F1")
@@ -481,10 +475,10 @@ def _transaction_graph(styles):
 
     # Legende
     legend_items = [
-        (COL_VICTIM,   "Opfer-Adresse"),
-        (COL_THIEF,    "Täter-Adresse"),
-        (COL_INTER,    "Intermediär (unbekannt)"),
-        (COL_EXCHANGE, "Identifizierte Exchange"),
+        (COL_VICTIM,   "Victim address"),
+        (COL_THIEF,    "Suspect address"),
+        (COL_INTER,    "Intermediary (unidentified)"),
+        (COL_EXCHANGE, "Identified exchange"),
     ]
     lx = 10
     ly = 10
@@ -500,8 +494,8 @@ def _transaction_graph(styles):
     story.append(d)
     story.append(Spacer(1, 6))
     story.append(Paragraph(
-        "— — — Gestrichelte Linien = L2 (forensisch belegt, nicht mathematisch bewiesen) | "
-        "Durchgezogene Linien = L1 (mathematisch bewiesen via UTXO)",
+        "Dashed lines = L2 (forensically corroborated, not mathematically proven) | "
+        "Solid lines = L1 (mathematically proven via UTXO)",
         styles["small"]
     ))
     story.append(Spacer(1, 8))
@@ -509,11 +503,11 @@ def _transaction_graph(styles):
 
 
 def _chain_of_custody(styles):
-    story = [Paragraph("2. Transaktionskette (Chain of Custody)", styles["h1"])]
+    story = [Paragraph("2. Chain of Custody", styles["h1"])]
     story += _hr()
     story.append(Paragraph(
-        "Die folgende Tabelle dokumentiert den vollständigen, on-chain verifizierbaren "
-        "Transaktionspfad der gestohlenen Bitcoin vom Opfer bis zur Exchange.",
+        "The following table documents the full on-chain verifiable transaction path "
+        "of the stolen bitcoin from the victim-controlled address set to the identified endpoint.",
         styles["body"]
     ))
     story.append(Spacer(1, 6))
@@ -524,7 +518,7 @@ def _chain_of_custody(styles):
 
         # Hop-Header
         header_data = [[
-            Paragraph(f"Hop {hop['hop']} — {hop['label']}", ParagraphStyle(
+            Paragraph(f"Hop {hop['hop']} - {hop['label']}", ParagraphStyle(
                 "hop_h", fontSize=9, fontName="Helvetica-Bold", textColor=C_WHITE
             )),
             Paragraph(f"{conf} — {hop['confidence_label']}", ParagraphStyle(
@@ -544,16 +538,16 @@ def _chain_of_custody(styles):
 
         # Details
         detail_rows = [
-            ["TX-ID", Paragraph(str(hop["txid"]), styles["mono"])],
+            ["TXID", Paragraph(str(hop["txid"]), styles["mono"])],
             ["Block", str(hop["block"])],
-            ["Zeitstempel", hop["timestamp"]],
-            ["Methode", hop["method"]],
+            ["Timestamp", hop["timestamp"]],
+            ["Method", hop["method"]],
         ]
 
         # Inputs
         if hop["from_addresses"]:
             for i, (addr, val) in enumerate(hop["from_addresses"]):
-                label = "Von" if i == 0 else ""
+                label = "From" if i == 0 else ""
                 val_str = f"{val:.8f} BTC" if val else "—"
                 detail_rows.append([label, Paragraph(
                     f"{addr}  <b>{val_str}</b>", styles["mono"]
@@ -562,7 +556,7 @@ def _chain_of_custody(styles):
         # Outputs
         if hop["to_addresses"]:
             for i, (addr, val) in enumerate(hop["to_addresses"]):
-                label = "An" if i == 0 else ""
+                label = "To" if i == 0 else ""
                 val_str = f"{val:.8f} BTC" if val else "—"
                 detail_rows.append([label, Paragraph(
                     f"{addr}  <b>{val_str}</b>", styles["mono"]
@@ -571,7 +565,7 @@ def _chain_of_custody(styles):
         if hop.get("fee_btc"):
             detail_rows.append(["Fee", f"{hop['fee_btc']:.8f} BTC"])
 
-        detail_rows.append(["Hinweis", Paragraph(hop["notes"], styles["small"])])
+        detail_rows.append(["Note", Paragraph(hop["notes"], styles["small"])])
 
         # Exchange-Label falls vorhanden
         if hop.get("exchange"):
@@ -599,7 +593,7 @@ def _chain_of_custody(styles):
         verify_url = f"https://blockstream.info/tx/{hop['txid']}"
         if len(str(hop["txid"])) == 64:
             verify = [Paragraph(
-                f"Verifikation: {verify_url}",
+                f"Verification: {verify_url}",
                 styles["small"]
             )]
         else:
@@ -612,32 +606,32 @@ def _chain_of_custody(styles):
             end_texts = {
                 "exchange": (
                     C_ALERT,
-                    "⬛  KETTENENDE — Exchange identifiziert",
-                    "Die gestohlenen Mittel wurden auf einer Kryptobörse eingezahlt. "
-                    "Die L1-Beweiskette endet hier. Ein formeller Freeze-Request wurde "
-                    "für diese Exchange generiert."
+                    "CHAIN END - Exchange identified",
+                    "The stolen funds were deposited to a cryptocurrency exchange. "
+                    "The L1 evidentiary chain ends at this point. A formal freeze request "
+                    "has been prepared for this exchange."
                 ),
                 "pooling": (
                     colors.HexColor("#5D4037"),
-                    "⬛  KETTENENDE — Pooling / Konsolidierung erkannt",
-                    "Die gestohlenen Mittel wurden mit Fremdmitteln zusammengeführt. "
-                    "Eine mathematisch eindeutige Zuordnung (L1) ist ab diesem Punkt "
-                    "nicht mehr möglich. Die Beweiskette endet hier gemäss forensischem Standard."
+                    "CHAIN END - Pooling / consolidation detected",
+                    "The stolen funds were combined with third-party funds. "
+                    "A mathematically unique attribution (L1) is no longer possible "
+                    "beyond this point. The evidentiary chain ends here under forensic standards."
                 ),
                 "unspent": (
                     colors.HexColor("#1A5276"),
-                    "⬛  KETTENENDE — UTXO nicht ausgegeben",
-                    "Die gestohlenen Mittel liegen noch unausgegeben an dieser Adresse "
-                    "(Stand: Analysezeitpunkt). Die Kette endet hier natürlich. "
-                    "Ein direktes Freeze-Request an Behörden ist empfohlen."
+                    "CHAIN END - UTXO unspent",
+                    "The stolen funds remain unspent at this address as of the time of analysis. "
+                    "The trace therefore ends here naturally. "
+                    "A direct preservation or freeze request is recommended."
                 ),
                 "lookup_incomplete": (
                     colors.HexColor("#7D6608"),
-                    "⬛  KETTENENDE — Weiterleitung technisch nicht vollstaendig aufgeloest",
-                    "Die Mittel wurden nicht als unspent klassifiziert. "
-                    "Vielmehr war die Spend-Aufloesung mit der aktuellen Infrastruktur unvollstaendig, "
-                    "sodass der naechste Hop nicht belastbar bestimmt werden konnte. "
-                    "Der Bericht ist an dieser Stelle unvollstaendig und darf nicht als Endpunktbewertung gelesen werden."
+                    "CHAIN END - Forwarding path not fully resolved",
+                    "The funds were not classified as unspent. "
+                    "Instead, spend resolution was incomplete with the current infrastructure, "
+                    "so the next hop could not be determined to an evidentiary standard. "
+                    "The report is incomplete at this point and must not be read as a final endpoint assessment."
                 ),
             }
             if chain_end in end_texts:
@@ -669,13 +663,13 @@ def _chain_of_custody(styles):
 
 
 def _integrity(report_hash, styles):
-    story = [Paragraph("4. Berichtsintegrität", styles["h1"])]
+    story = [Paragraph("5. Report Integrity", styles["h1"])]
     story += _hr()
     rows = [
-        ["SHA-256 Prüfsumme", Paragraph(report_hash, styles["mono"])],
-        ["Generiert am", CASE["generated_at"]],
-        ["System", "AIFinancialCrime Forensik-System v1.0"],
-        ["Datenquelle", "Bitcoin-Node/Blockstream + BTC Exchange Intel Agent"],
+        ["SHA-256 checksum", Paragraph(report_hash, styles["mono"])],
+        ["Generated at", CASE["generated_at"]],
+        ["System", "AIFinancialCrime Forensic System v1.0"],
+        ["Data source", "Bitcoin node / Blockstream + BTC Exchange Intel Agent"],
     ]
     tbl = Table(rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
     tbl.setStyle(TableStyle([
@@ -690,43 +684,43 @@ def _integrity(report_hash, styles):
     story.append(tbl)
     story.append(Spacer(1, 6))
     story.append(Paragraph(
-        "Dieser Bericht wurde automatisch durch das AIFinancialCrime Forensik-System "
-        "generiert. Alle on-chain Daten sind öffentlich verifizierbar. "
-        "Die SHA-256 Prüfsumme dient der Integritätsverifikation des Berichtsinhalts.",
+        "This report was generated automatically by the AIFinancialCrime forensic system. "
+        "All on-chain data remains publicly verifiable. "
+        "The SHA-256 checksum is provided for integrity verification of the report content.",
         styles["small"]
     ))
     return story
 
 
 def _recommended_actions(styles):
-    story = [Paragraph("3. Empfohlene Maßnahmen", styles["h1"])]
+    story = [Paragraph("4. Recommended Actions", styles["h1"])]
     story += _hr()
 
     actions = [
-        ("SOFORT (innerhalb 24h)",
+        ("IMMEDIATE (within 24 hours)",
          C_ALERT,
          [
-             "Strafanzeige bei der zuständigen Polizeibehörde erstatten (Cybercrime-Abteilung)",
+             "File a criminal complaint with the competent law enforcement authority (cybercrime unit).",
          ] + [
-             f"Freeze-Request an {ex['name']} Compliance: {ex['compliance_email']}"
+             f"Send a freeze request to {ex['name']} Compliance: {ex['compliance_email']}"
              for ex in EXCHANGES_IDENTIFIED
          ] + [
-             "Alle Freeze-Requests mit dieser Analyse und den TX-IDs dokumentieren",
+             "Document every freeze request together with this analysis and the relevant transaction identifiers.",
          ]),
-        ("KURZFRISTIG (innerhalb 1 Woche)",
+        ("SHORT TERM (within 1 week)",
          C_WARNING,
          [
-             "Anzeige bei BaFin (Deutschland) oder zuständiger nationaler Finanzaufsicht",
-             "Europol EC3 Meldung: https://www.europol.europa.eu/report-a-crime",
-             "Rechtsanwalt mit Cryptocurrency-Erfahrung hinzuziehen",
-             "Betroffene Wallet-/Seed-Umgebung als kompromittiert behandeln und neue Zugangsdaten beziehungsweise Seed-Phrase erzeugen",
+             "Notify BaFin (Germany) or the competent national financial regulator, where applicable.",
+             "Consider a Europol EC3 report: https://www.europol.europa.eu/report-a-crime",
+             "Engage legal counsel with cryptocurrency tracing or asset recovery experience.",
+             "Treat the affected wallet or seed environment as compromised and establish new secure credentials or a new seed phrase.",
          ]),
-        ("MITTELFRISTIG",
+        ("MEDIUM TERM",
          C_SUCCESS,
          [
-             "Antwort der Exchanges abwarten und dokumentieren",
-             "Bei Kontoeinfrierung: Strafverfolgung koordinieren",
-             "Zivilrechtliche Schritte prüfen falls Exchange kooperiert",
+             "Record and preserve all responses received from exchanges.",
+             "Coordinate with law enforcement if an account preservation or freeze is confirmed.",
+             "Assess civil recovery options if the exchange cooperates.",
          ]),
     ]
 
@@ -778,38 +772,38 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(hdr)
     story.append(Spacer(1, 10))
 
-    story.append(Paragraph(f"An: {exchange_data['name']} Compliance Team", styles["body_bold"]))
-    story.append(Paragraph(f"E-Mail: {exchange_data['compliance_email']}", styles["body"]))
-    story.append(Paragraph(f"Datum: {CASE['generated_at']}", styles["body"]))
+    story.append(Paragraph(f"To: {exchange_data['name']} Compliance Team", styles["body_bold"]))
+    story.append(Paragraph(f"Email: {exchange_data['compliance_email']}", styles["body"]))
+    story.append(Paragraph(f"Date: {CASE['generated_at']}", styles["body"]))
     story.append(Spacer(1, 10))
 
-    story.append(Paragraph("Betreff: Dringende Anfrage zur Kontoeinfrierung — Bitcoin-Diebstahl", styles["h1"]))
+    story.append(Paragraph("Subject: Urgent asset preservation request - bitcoin theft", styles["h1"]))
     story += _hr()
 
     story.append(Paragraph(
-        f"Sehr geehrtes Compliance-Team von {exchange_data['name']},",
+        f"Dear {exchange_data['name']} Compliance Team,",
         styles["body"]
     ))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        f"hiermit beantrage ich die sofortige Einfrierung aller Konten und Vermögenswerte "
-        f"die mit den unten genannten Bitcoin-Adressen in Verbindung stehen. "
-        f"Am {_case_text('incident_date')} wurden <b>{_btc_label(CASE.get('fraud_amount'))}</b> "
-        f"ohne meine Autorisierung aus meiner Wallet-Umgebung abgezogen. "
-        f"Die forensische Blockchain-Analyse (beigefügt) belegt, dass ein Teil dieser "
-        f"Mittel über Ihre Plattform geflossen ist.",
+        f"I hereby request the immediate preservation or freezing of all accounts and assets "
+        f"associated with the bitcoin addresses listed below. "
+        f"On {_case_text('incident_date')}, <b>{_btc_label(CASE.get('fraud_amount'))}</b> "
+        f"was withdrawn without authorization from my wallet environment. "
+        f"The attached forensic blockchain analysis shows that part of these funds "
+        f"passed through your platform.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
 
     # Identifizierte Adressen
-    story.append(Paragraph("Identifizierte Adressen auf Ihrer Plattform:", styles["h2"]))
+    story.append(Paragraph("Identified addresses on your platform:", styles["h2"]))
     addr_rows = [
-        ["Bitcoin-Adresse", exchange_data["address"]],
+        ["Bitcoin address", exchange_data["address"]],
         ["Attribution", exchange_data["label"]],
-        ["Wallet-ID", exchange_data["wallet_id"]],
-        ["Confidence", f"{exchange_data['confidence']} — Forensisch belegt (validierte Quelle)"],
-        ["BTC betroffen", f"{exchange_data['btc_involved']:.8f} BTC"],
+        ["Wallet ID", exchange_data["wallet_id"]],
+        ["Confidence", f"{exchange_data['confidence']} - Forensically corroborated (validated source)"],
+        ["BTC involved", f"{exchange_data['btc_involved']:.8f} BTC"],
     ]
     addr_tbl = Table(addr_rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
     addr_tbl.setStyle(TableStyle([
@@ -825,18 +819,18 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(addr_tbl)
     story.append(Spacer(1, 8))
 
-    # Ursprungs-TX
+    # Originating transaction
     _fraud_txid = HOPS[0]["txid"] if HOPS else ""
     _fraud_block = str(HOPS[0].get("block", "")) if HOPS else ""
     _fraud_ts = HOPS[0].get("timestamp", _case_text("incident_date", "")) if HOPS else _case_text("incident_date", "")
     _fraud_amount = _btc_label(CASE.get("fraud_amount"))
-    story.append(Paragraph("Ursprungstransaktion (Diebstahl):", styles["h2"]))
+    story.append(Paragraph("Originating transaction (theft event):", styles["h2"]))
     tx_rows = [
-        ["TX-ID",       _fraud_txid],
+        ["TXID",        _fraud_txid],
         ["Block",       _fraud_block],
-        ["Zeitstempel", _fraud_ts],
-        ["Betrag",      _fraud_amount],
-        ["Verifikation", f"https://blockstream.info/tx/{_fraud_txid}"],
+        ["Timestamp",   _fraud_ts],
+        ["Amount",      _fraud_amount],
+        ["Verification", f"https://blockstream.info/tx/{_fraud_txid}"],
     ]
     tx_tbl = Table(tx_rows, colWidths=[28*mm, PAGE_W - 2*MARGIN - 28*mm])
     tx_tbl.setStyle(TableStyle([
@@ -851,25 +845,23 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(tx_tbl)
     story.append(Spacer(1, 8))
 
-    # Rechtliche Grundlage
-    story.append(Paragraph("Rechtliche Grundlage:", styles["h2"]))
+    story.append(Paragraph("Legal basis:", styles["h2"]))
     story.append(Paragraph(
-        "• EU Anti-Money Laundering Directive (AMLD5/6) — Exchanges sind verpflichtet "
-        "bei begründetem Verdacht auf Geldwäsche oder Betrug zu kooperieren.\n"
-        "• FATF Recommendation 16 (Travel Rule) — Nachverfolgungspflicht bei Transfers.\n"
-        "• Strafgesetzbuch §263 (Betrug) / §202a (Datendiebstahl) — Strafanzeige ist gestellt.\n"
-        "• Eine vollständige forensische Analyse ist diesem Schreiben beigefügt.",
+        "• EU Anti-Money Laundering Directive (AMLD5/6) - exchanges are expected to cooperate where there is a substantiated suspicion of fraud or money laundering.\n"
+        "• FATF Recommendation 16 (Travel Rule) - transfer tracing obligations may apply.\n"
+        "• Applicable national fraud and cybercrime provisions may be engaged, subject to the relevant jurisdiction.\n"
+        "• A full forensic blockchain analysis is attached to this request.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
 
-    # Anforderungen
+    # Requested actions
     req_data = [[Paragraph(
-        "WIR BEANTRAGEN:\n"
-        "1. Sofortige Einfrierung aller Konten die mit der oben genannten Adresse verknüpft sind\n"
-        "2. Sicherung aller KYC-Daten des Kontoinhabers\n"
-        "3. Bestätigung des Eingangs dieser Anfrage binnen 24 Stunden\n"
-        "4. Kooperation mit den zuständigen Strafverfolgungsbehörden",
+        "WE REQUEST:\n"
+        "1. Immediate preservation or freezing of all accounts linked to the address listed above\n"
+        "2. Preservation of all KYC records associated with the account holder\n"
+        "3. Written confirmation of receipt of this request within 24 hours\n"
+        "4. Cooperation with the competent law enforcement authorities",
         ParagraphStyle("req", fontSize=9, fontName="Helvetica-Bold",
                        textColor=C_PRIMARY, leading=14)
     )]]
@@ -884,13 +876,13 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(req_tbl)
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph("Mit freundlichen Grüßen,", styles["body"]))
+    story.append(Paragraph("Sincerely,", styles["body"]))
     story.append(Spacer(1, 4))
     story.append(Paragraph(f"<b>{CASE['victim_name']}</b>", styles["body_bold"]))
-    story.append(Paragraph(f"Fall-Referenz: {CASE['case_id']}", styles["small"]))
+    story.append(Paragraph(f"Case reference: {CASE['case_id']}", styles["small"]))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        f"Beilage: Vollständiger forensischer Blockchain-Analysebericht ({CASE['case_id']})",
+        f"Attachment: full forensic blockchain analysis report ({CASE['case_id']})",
         styles["small"]
     ))
 
@@ -907,8 +899,7 @@ def _freeze_request(exchange_data, styles, output_path):
 
 def load_hops_from_db(fraud_txid: str, max_hops: int = 10) -> list:
     """
-    Lädt die Hop-Chain automatisch aus PostgreSQL.
-    Ersetzt die hardcoded HOPS für Hops 1+.
+    Load the hop chain automatically from PostgreSQL.
     """
     import os, psycopg2
     from dotenv import load_dotenv
@@ -929,7 +920,7 @@ def load_hops_from_db(fraud_txid: str, max_hops: int = 10) -> list:
                 visited.add(txid)
 
                 with conn.cursor() as cur:
-                    # Outputs die ausgegeben wurden
+                    # Spent outputs
                     cur.execute("""
                         SELECT o.txid, o.address, o.amount_sats, o.spent_by_txid,
                                t.block_height, t.first_seen
@@ -945,7 +936,7 @@ def load_hops_from_db(fraud_txid: str, max_hops: int = 10) -> list:
                     if to_txid in visited:
                         continue
 
-                    # Outputs der Folge-TX
+                    # Outputs of the follow-on transaction
                     with conn.cursor() as cur:
                         cur.execute("""
                             SELECT o2.address, o2.amount_sats
@@ -956,11 +947,11 @@ def load_hops_from_db(fraud_txid: str, max_hops: int = 10) -> list:
                         to_rows = cur.fetchall()
 
                     to_addresses = [(r[0], r[1]/1e8) for r in to_rows if r[0]]
-                    ts_str = ts.strftime("%d.%m.%Y ~%H:%M UTC") if ts else "—"
+                    ts_str = ts.strftime("%Y-%m-%d %H:%M UTC") if ts else "—"
 
                     hops.append({
                         "hop": hop_idx,
-                        "label": f"Hop {hop_idx} — UTXO Weiterleitung",
+                        "label": f"Hop {hop_idx} - UTXO forwarding",
                         "txid": to_txid,
                         "block": block or 0,
                         "timestamp": ts_str,
@@ -968,9 +959,9 @@ def load_hops_from_db(fraud_txid: str, max_hops: int = 10) -> list:
                         "to_addresses": to_addresses,
                         "fee_btc": None,
                         "confidence": "L1",
-                        "confidence_label": "Mathematisch bewiesen",
-                        "method": "Direkter UTXO-Link",
-                        "notes": f"Automatisch erkannt via lokalen Bitcoin-Node.",
+                        "confidence_label": "Mathematically proven",
+                        "method": "Direct UTXO link",
+                        "notes": "Automatically detected via the local Bitcoin node.",
                     })
                     next_txids.append(to_txid)
                     hop_idx += 1
@@ -992,8 +983,7 @@ def generate_all():
     OUTPUT_DIR = CASES_DIR / "output"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # --- Hauptbericht ---
-    print("Generiere forensischen Analysebericht...")
+    print("Generating forensic analysis report...")
     report_content = str(HOPS) + str(CASE)
     report_hash = hashlib.sha256(report_content.encode()).hexdigest()
 
@@ -1002,8 +992,8 @@ def generate_all():
         buf, pagesize=A4,
         leftMargin=MARGIN, rightMargin=MARGIN,
         topMargin=18*mm, bottomMargin=16*mm,
-        title=f"Forensischer Analysebericht {CASE['case_id']}",
-        author="AIFinancialCrime Forensik-System",
+        title=f"Forensic Analysis Report {CASE['case_id']}",
+        author="AIFinancialCrime Forensic System",
     )
     on_page = _page_template(CASE["case_id"], CASE["generated_at"])
 
@@ -1022,18 +1012,17 @@ def generate_all():
 
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
 
-    report_path = str(OUTPUT_DIR / f"{CASE['case_id']}_Forensischer_Analysebericht.pdf")
+    report_path = str(OUTPUT_DIR / f"{CASE['case_id']}_Forensic_Analysis_Report.pdf")
     with open(report_path, "wb") as f:
         f.write(buf.getvalue())
     print(f"  ✅ {report_path}")
 
-    # --- Freeze Requests ---
-    print("Generiere Freeze Requests...")
+    print("Generating freeze requests...")
     for ex in EXCHANGES_IDENTIFIED:
         path = str(OUTPUT_DIR / f"{CASE['case_id']}_Freeze_Request_{ex['name']}.pdf")
         _freeze_request(ex, styles, path)
 
-    print(f"\n✅ Alle Dokumente generiert in {OUTPUT_DIR}")
+    print(f"\nOK - All documents generated in {OUTPUT_DIR}")
     print(f"   SHA-256: {report_hash}")
 
 
@@ -1083,20 +1072,20 @@ def _load_case_from_file(case_id: str) -> None:
             HOPS[0]["txid"] = blockchain["fraud_txid"]
         HOPS[0]["timestamp"] = incident.get("date", "")
 
-    print(f"✅ Fallakte geladen: {case_file}")
-    print(f"   Geschädigter: {CASE['victim_name']}")
-    print(f"   Betrag:       {CASE['fraud_amount']} BTC")
-    print(f"   TX-ID:        {str(blockchain.get('fraud_txid', '?'))[:32]}...")
+    print(f"OK - Case file loaded: {case_file}")
+    print(f"   Reporting party: {CASE['victim_name']}")
+    print(f"   Amount:          {CASE['fraud_amount']} BTC")
+    print(f"   TXID:            {str(blockchain.get('fraud_txid', '?'))[:32]}...")
 
     fraud_txid = blockchain.get("fraud_txid")
     if fraud_txid:
-        print("Lade Hops aus PostgreSQL-DB...")
+        print("Loading hops from PostgreSQL...")
         db_hops = load_hops_from_db(fraud_txid)
         if db_hops:
             HOPS[1:] = db_hops
-            print(f"   {len(db_hops)} Hops aus DB geladen.")
+            print(f"   {len(db_hops)} hop(s) loaded from the database.")
         else:
-            print("   Keine Hops in DB — nutze vorhandene Hops.")
+            print("   No hops found in the database - using existing hops.")
 
 
 def cli(argv: list[str] | None = None) -> int:
@@ -1106,7 +1095,7 @@ def cli(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--case",
         metavar="ID",
-        help="Fall-ID — lädt cases/<ID>.json und generiert Report",
+        help="Case ID - loads cases/<ID>.json and generates the report",
     )
     args = parser.parse_args(argv)
 
@@ -1114,8 +1103,8 @@ def cli(argv: list[str] | None = None) -> int:
         try:
             _load_case_from_file(args.case)
         except FileNotFoundError as exc:
-            print(f"❌ Fallakte nicht gefunden: {exc}")
-            print(f"   Bitte Fallakte in ~/AIFinancialCrime-Cases/cases/ ablegen.")
+            print(f"ERROR - Case file not found: {exc}")
+            print("   Place the case file in ~/AIFinancialCrime-Cases/cases/.")
             return 1
 
     generate_all()
