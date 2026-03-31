@@ -400,22 +400,24 @@ def _transaction_graph(styles):
     if len(victim_set) > 1:
         cluster_id = "__victim_input_cluster__"
         victim_nodes = [node for node in nodes if node["address"] in victim_set]
+        node_by_id = {node["id"]: node for node in nodes}
         aggregated_edges: dict[str, dict] = {}
         preserved_edges: list[dict] = []
         for edge in edges:
             if edge.get("from") in victim_set:
                 target = edge.get("to", "")
                 if target not in aggregated_edges:
+                    target_node = node_by_id.get(target, {})
                     aggregated_edges[target] = {
                         **edge,
                         "id": f"{cluster_id}:{target}",
                         "from": cluster_id,
-                        "amount_btc": 0.0,
+                        "amount_btc": float(target_node.get("display_in_btc") or target_node.get("total_in_btc") or 0.0),
                         "notes": "Aggregated victim-controlled input set.",
                     }
-                aggregated_edges[target]["amount_btc"] += float(edge.get("amount_btc") or 0)
             else:
                 preserved_edges.append(edge)
+        grouped_output_btc = sum(float(edge.get("amount_btc") or 0) for edge in aggregated_edges.values())
         edges = preserved_edges + list(aggregated_edges.values())
         nodes = [node for node in nodes if node["address"] not in victim_set]
         nodes.append({
@@ -426,7 +428,9 @@ def _transaction_graph(styles):
             "exchange": "",
             "is_sanctioned": any(node.get("is_sanctioned") for node in victim_nodes),
             "total_in_btc": 0.0,
-            "total_out_btc": sum(float(node.get("total_out_btc") or 0) for node in victim_nodes),
+            "total_out_btc": grouped_output_btc,
+            "display_in_btc": 0.0,
+            "display_out_btc": grouped_output_btc,
             "has_change_output": False,
             "chain_end_reason": "",
             "display_label": "Victim input set",
@@ -547,23 +551,23 @@ def _transaction_graph(styles):
         if node.get("id") == "__victim_input_cluster__":
             title = "Victim input set"
             subtitle = f"{node.get('member_count', 0)} addresses"
-            amount_line = f"{_fmt_btc(node.get('total_out_btc'))} BTC"
+            amount_line = f"{_fmt_btc(node.get('display_out_btc', node.get('total_out_btc')))} BTC"
         elif node.get("kind") == "victim":
             title = "Victim input"
             subtitle = _short(node.get("address", ""))
-            amount_line = f"{_fmt_btc(node.get('total_out_btc'))} BTC"
+            amount_line = f"{_fmt_btc(node.get('display_out_btc', node.get('total_out_btc')))} BTC"
         elif node.get("kind") == "recipient":
             title = "Recipient"
             subtitle = _short(node.get("address", ""))
-            amount_line = f"{_fmt_btc(max(node.get('total_in_btc') or 0, node.get('total_out_btc') or 0))} BTC"
+            amount_line = f"{_fmt_btc(max(node.get('display_in_btc') or 0, node.get('display_out_btc') or 0, node.get('total_in_btc') or 0, node.get('total_out_btc') or 0))} BTC"
         elif node.get("kind") == "exchange":
             title = node.get("exchange") or "Exchange"
             subtitle = _short(node.get("address", ""))
-            amount_line = f"{_fmt_btc(node.get('total_in_btc'))} BTC"
+            amount_line = f"{_fmt_btc(node.get('display_in_btc', node.get('total_in_btc')))} BTC"
         else:
             title = "Traced address"
             subtitle = _short(node.get("address", ""))
-            amount_line = f"{_fmt_btc(max(node.get('total_in_btc') or 0, node.get('total_out_btc') or 0))} BTC"
+            amount_line = f"{_fmt_btc(max(node.get('display_in_btc') or 0, node.get('display_out_btc') or 0, node.get('total_in_btc') or 0, node.get('total_out_btc') or 0))} BTC"
 
         status = _status_label(str(node.get("chain_end_reason") or ""))
 

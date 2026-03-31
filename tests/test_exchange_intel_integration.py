@@ -291,6 +291,36 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
         self.assertTrue(all(edge["amount_context"] == "aggregate_transaction" for edge in graph["edges"]))
         self.assertTrue(all(edge["amount_btc"] is None for edge in graph["edges"]))
 
+    def test_flow_graph_keeps_display_amounts_at_first_occurrence_when_address_reappears(self) -> None:
+        graph = report_helpers._build_flow_graph(
+            ["bc1qvictim1", "bc1qvictim2"],
+            "bc1qrecipient",
+            [
+                {
+                    "hop": 0,
+                    "txid": "tx-hop-0",
+                    "from_addresses": [("bc1qvictim1", 0.2), ("bc1qvictim2", 0.21243268)],
+                    "to_addresses": [("bc1qrecipient", 0.41240620)],
+                    "confidence": "L1",
+                    "confidence_label": "Mathematically proven",
+                },
+                {
+                    "hop": 1,
+                    "txid": "tx-hop-1",
+                    "from_addresses": [("bc1qrecipient", 0.41240620)],
+                    "to_addresses": [("bc1qrecipient", 0.21240479), ("bc1qnext", 0.2)],
+                    "confidence": "L1",
+                    "confidence_label": "Mathematically proven",
+                },
+            ],
+        )
+
+        recipient = next(node for node in graph["nodes"] if node["address"] == "bc1qrecipient")
+        self.assertAlmostEqual(recipient["display_in_btc"], 0.41240620)
+        self.assertAlmostEqual(recipient["display_out_btc"], 0.41240620)
+        self.assertAlmostEqual(recipient["total_in_btc"], 0.62481099)
+        self.assertAlmostEqual(recipient["total_out_btc"], 0.41240620)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -89,6 +89,8 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
     node_map: dict[str, dict] = {}
     edges: list[dict] = []
     max_column = 0
+    display_in_seen: set[str] = set()
+    display_out_seen: set[str] = set()
 
     def _pick_kind(current: str, candidate: str) -> str:
         return candidate if kind_priority.get(candidate, 0) >= kind_priority.get(current, 0) else current
@@ -116,6 +118,8 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
                 "is_sanctioned": bool(sanctioned),
                 "total_in_btc": 0.0,
                 "total_out_btc": 0.0,
+                "display_in_btc": 0.0,
+                "display_out_btc": 0.0,
                 "has_change_output": False,
                 "chain_end_reason": "",
             }
@@ -165,9 +169,13 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
                 sanctioned=bool(hop.get("is_sanctioned")),
             )
             try:
-                node["total_out_btc"] += float(amount or 0)
+                out_amount = float(amount or 0)
             except Exception:
-                pass
+                out_amount = 0.0
+            node["total_out_btc"] += out_amount
+            if addr not in display_out_seen:
+                node["display_out_btc"] += out_amount
+                display_out_seen.add(addr)
 
         for addr, amount in to_entries:
             if not addr:
@@ -184,9 +192,13 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
                 sanctioned=bool(hop.get("is_sanctioned")),
             )
             try:
-                node["total_in_btc"] += float(amount or 0)
+                in_amount = float(amount or 0)
             except Exception:
-                pass
+                in_amount = 0.0
+            node["total_in_btc"] += in_amount
+            if addr not in display_in_seen:
+                node["display_in_btc"] += in_amount
+                display_in_seen.add(addr)
             if hop.get("chain_end_reason") and not node.get("chain_end_reason"):
                 node["chain_end_reason"] = hop.get("chain_end_reason") or ""
             if is_change_addr:

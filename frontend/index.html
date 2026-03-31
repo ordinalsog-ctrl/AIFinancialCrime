@@ -1192,6 +1192,8 @@ function showNodeDetails(nodeId) {
   const addressValue = isVictimCluster
     ? `${node.member_count || 0} victim-controlled inputs`
     : node.address;
+  const displayInBtc = Number(node.display_in_btc ?? node.total_in_btc ?? 0);
+  const displayOutBtc = Number(node.display_out_btc ?? node.total_out_btc ?? 0);
   const extraClusterDetail = isVictimCluster
     ? `<div class="detail-item"><strong>Included Addresses</strong><div>${escapeHtml((node.member_addresses || []).join(' · ') || '—')}</div></div>`
     : '';
@@ -1201,7 +1203,7 @@ function showNodeDetails(nodeId) {
     <div class="detail-list">
       <div class="detail-item"><strong>${addressLabel}</strong><div>${escapeHtml(addressValue)}</div></div>
       <div class="detail-item"><strong>Graph Level</strong><div>${node.column === 0 ? 'Victim' : `Hop ${node.column - 1}`}</div></div>
-      <div class="detail-item"><strong>BTC Flow</strong><div>Incoming: ${formatBtc(node.total_in_btc)} BTC · Outgoing: ${formatBtc(node.total_out_btc)} BTC</div></div>
+      <div class="detail-item"><strong>BTC Flow</strong><div>Incoming: ${formatBtc(displayInBtc)} BTC · Outgoing: ${formatBtc(displayOutBtc)} BTC</div></div>
       ${node.exchange ? `<div class="detail-item"><strong>Exchange</strong><div>${escapeHtml(node.exchange)}</div></div>` : ''}
       ${node.chain_end_reason ? `<div class="detail-item"><strong>Chain End</strong><div>${escapeHtml((chainEndMeta(node.chain_end_reason) || [node.chain_end_reason])[0])}</div></div>` : ''}
       ${extraClusterDetail}
@@ -1224,11 +1226,15 @@ function showEdgeDetails(edgeId) {
   ].filter(Boolean).join('');
   const amountText = edge.amount_context === 'aggregate_transaction'
     ? 'Aggregate multi-input / multi-output transaction. Please refer to the Chain of Custody section for exact output-level amounts.'
+    : edge.amount_context === 'aggregated_output'
+      ? `${formatBtc(edge.amount_btc)} BTC (grouped victim input set routed into the traced output)`
     : edge.amount_context === 'input_contribution'
       ? `${formatBtc(edge.amount_btc)} BTC (input contribution within the aggregated transaction)`
       : `${formatBtc(edge.amount_btc)} BTC`;
   const amountBasis = edge.amount_context === 'input_contribution'
     ? 'Input contribution'
+    : edge.amount_context === 'aggregated_output'
+      ? 'Grouped traced output'
     : edge.amount_context === 'aggregate_transaction'
       ? 'Aggregate transaction context'
       : 'Output amount';
@@ -1288,30 +1294,34 @@ function normalizeFlowGraph(graph) {
     const clusterId = '__victim_input_cluster__';
     const aggregatedEdges = new Map();
     const preservedEdges = [];
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
 
     for (const edge of edges) {
       if (victimIds.has(edge.from)) {
         const target = edge.to;
         if (!aggregatedEdges.has(target)) {
+          const targetNode = nodeById.get(target) || {};
           aggregatedEdges.set(target, {
             ...edge,
             id: `${clusterId}:${target}`,
             from: clusterId,
-            amount_btc: 0,
-            amount_context: 'input_set_total',
+            amount_btc: Number(targetNode.display_in_btc ?? targetNode.total_in_btc ?? 0),
+            amount_context: 'aggregated_output',
             notes: 'Aggregated victim-controlled input set.',
             source_addresses: [],
           });
         }
         const aggregated = aggregatedEdges.get(target);
-        const amount = Number(edge.amount_btc || 0);
-        if (Number.isFinite(amount)) aggregated.amount_btc += amount;
         aggregated.source_addresses.push(edge.from);
       } else {
         preservedEdges.push(edge);
       }
     }
 
+    const groupedOutputBtc = Array.from(aggregatedEdges.values()).reduce(
+      (sum, edge) => sum + Number(edge.amount_btc || 0),
+      0,
+    );
     nodes = nodes.filter(node => !victimIds.has(node.id));
     nodes.push({
       id: clusterId,
@@ -1321,7 +1331,9 @@ function normalizeFlowGraph(graph) {
       exchange: '',
       is_sanctioned: victimNodes.some(node => node.is_sanctioned),
       total_in_btc: 0,
-      total_out_btc: victimNodes.reduce((sum, node) => sum + Number(node.total_out_btc || 0), 0),
+      total_out_btc: groupedOutputBtc,
+      display_in_btc: 0,
+      display_out_btc: groupedOutputBtc,
       has_change_output: false,
       chain_end_reason: '',
       display_label: 'Victim input set',
@@ -1462,9 +1474,11 @@ function renderFlowGraph(graph) {
       const pillClass = node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'address';
       const pillLabel = node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Victim' : node.kind === 'recipient' ? 'Recipient' : 'Address';
       const meta = [];
+      const displayInBtc = Number(node.display_in_btc ?? node.total_in_btc ?? 0);
+      const displayOutBtc = Number(node.display_out_btc ?? node.total_out_btc ?? 0);
       if (node.short_address) meta.push(node.short_address);
-      if (Number(node.total_in_btc) > 0) meta.push(`+${formatBtc(node.total_in_btc)} BTC`);
-      if (Number(node.total_out_btc) > 0) meta.push(`-${formatBtc(node.total_out_btc)} BTC`);
+      if (displayInBtc > 0) meta.push(`+${formatBtc(displayInBtc)} BTC`);
+      if (displayOutBtc > 0) meta.push(`-${formatBtc(displayOutBtc)} BTC`);
       if (node.has_change_output) meta.push('Change');
       nodeHtml.push(`
         <button type="button" class="graph-node-card ${node.kind} ${node.is_sanctioned ? 'sanctioned' : ''}" data-node-id="${escapeHtml(node.id)}" style="left:${x}px;top:${y}px">
