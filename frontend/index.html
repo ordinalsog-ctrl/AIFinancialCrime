@@ -1293,9 +1293,11 @@ function renderFlowGraph(graph) {
   const rowGap = 92;
   const padX = 24;
   const padTop = 58;
+  const padBottom = 36;
   const maxRows = Math.max(1, ...colKeys.map(col => columns.get(col).length));
   const width = padX * 2 + Math.max(0, colKeys.length - 1) * columnGap + nodeWidth;
-  const height = padTop + Math.max(0, maxRows - 1) * rowGap + nodeHeight + 36;
+  const contentHeight = Math.max(1, maxRows * nodeHeight + Math.max(0, maxRows - 1) * rowGap);
+  const height = padTop + contentHeight + padBottom;
   const positions = {};
   const laneHtml = [];
   const nodeHtml = [];
@@ -1304,8 +1306,11 @@ function renderFlowGraph(graph) {
     const x = padX + index * columnGap;
     const lane = (graph.lanes || []).find(item => Number(item.column) === col);
     laneHtml.push(`<div class="graph-lane-label" style="left:${x}px;width:${nodeWidth}px">${escapeHtml(lane?.label || (col === 0 ? 'Victim' : `Hop ${col - 1}`))}</div>`);
-    columns.get(col).forEach((node, rowIndex) => {
-      const y = padTop + rowIndex * rowGap;
+    const columnNodes = columns.get(col);
+    const columnHeight = columnNodes.length * nodeHeight + Math.max(0, columnNodes.length - 1) * rowGap;
+    const startY = padTop + Math.max(0, (contentHeight - columnHeight) / 2);
+    columnNodes.forEach((node, rowIndex) => {
+      const y = startY + rowIndex * rowGap;
       positions[node.id] = { x, y };
       const pillClass = node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'address';
       const pillLabel = node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Victim' : node.kind === 'recipient' ? 'Recipient' : 'Address';
