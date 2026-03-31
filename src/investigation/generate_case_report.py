@@ -109,6 +109,199 @@ def _freeze_summary_rows(exchange_data: dict) -> list[list[str]]:
     return rows
 
 
+def _freeze_summary_table(rows: list[list[str]], styles) -> Table:
+    table_rows = []
+    label_style = ParagraphStyle(
+        "freeze_label",
+        parent=styles["body_bold"],
+        fontSize=8.3,
+        leading=11,
+        textColor=C_PRIMARY,
+    )
+    value_style = ParagraphStyle(
+        "freeze_value",
+        parent=styles["body"],
+        fontSize=8.3,
+        leading=11,
+        textColor=C_DARK,
+    )
+    for label, value in rows:
+        table_rows.append([
+            Paragraph(str(label), label_style),
+            Paragraph(str(value).replace("\n", "<br/>"), value_style),
+        ])
+
+    tbl = Table(table_rows, colWidths=[48 * mm, PAGE_W - 2 * MARGIN - 48 * mm])
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FDF2F2")),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.HexColor("#FEF7F7"), colors.HexColor("#FDEEEE")]),
+        ("GRID", (0, 0), (-1, -1), 0.3, C_BORDER),
+        ("BOX", (0, 0), (-1, -1), 1.4, C_ALERT),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LINEAFTER", (0, 0), (0, -1), 0.4, colors.HexColor("#E3C9C9")),
+    ]))
+    return tbl
+
+
+def _freeze_endpoint_paths(exchange_data: dict, victim_addresses: list[str], recipient_address: str, hops: list[dict]) -> list[list[dict]]:
+    from src.api.report_helpers import _build_flow_graph
+
+    def _short(address: str, left: int = 12, right: int = 8) -> str:
+        if not address:
+            return "—"
+        if len(address) <= left + right + 1:
+            return address
+        return f"{address[:left]}…{address[-right:]}"
+
+    def _node_title(node: dict) -> str:
+        kind = node.get("kind")
+        if kind == "recipient":
+            return "Recipient"
+        if kind == "exchange":
+            return node.get("exchange") or "Exchange"
+        if kind == "victim":
+            return "Victim inputs"
+        return "Traced address"
+
+    def _node_amount(node: dict) -> float:
+        if node.get("kind") == "exchange":
+            return float(node.get("display_in_btc") or node.get("total_in_btc") or 0.0)
+        return float(
+            max(
+                node.get("display_in_btc") or 0.0,
+                node.get("display_out_btc") or 0.0,
+                node.get("total_in_btc") or 0.0,
+                node.get("total_out_btc") or 0.0,
+            )
+        )
+
+    graph = _build_flow_graph(victim_addresses, recipient_address, hops)
+    node_by_id = {node["id"]: node for node in graph.get("nodes", [])}
+    incoming: dict[str, list[dict]] = {}
+    for edge in graph.get("edges", []):
+        incoming.setdefault(edge.get("to", ""), []).append(edge)
+
+    target_addresses = [addr for addr, _ in (exchange_data.get("all_addresses") or [(exchange_data["address"], exchange_data["btc_involved"])])]
+    paths: list[list[dict]] = []
+    for target in target_addresses:
+        if target not in node_by_id:
+            continue
+        current = target
+        visited: set[str] = set()
+        sequence: list[dict] = []
+        while current and current not in visited and current in node_by_id:
+            visited.add(current)
+            node = node_by_id[current]
+            sequence.append({
+                "kind": node.get("kind", "address"),
+                "title": _node_title(node),
+                "subtitle": _short(node.get("address", "")),
+                "amount_btc": _node_amount(node),
+            })
+            in_edges = [edge for edge in incoming.get(current, []) if edge.get("from") != current]
+            if not in_edges:
+                break
+            if len(in_edges) > 1:
+                source_nodes = [node_by_id.get(edge.get("from", ""), {}) for edge in in_edges]
+                if all(src.get("kind") == "victim" for src in source_nodes if src):
+                    sequence.append({
+                        "kind": "victim",
+                        "title": "Victim inputs",
+                        "subtitle": f"{len(source_nodes)} addresses",
+                        "amount_btc": sum(float(edge.get("amount_btc") or 0.0) for edge in in_edges),
+                    })
+                    break
+                chosen = max(in_edges, key=lambda edge: float(edge.get("amount_btc") or 0.0))
+            else:
+                chosen = in_edges[0]
+            current = chosen.get("from", "")
+        paths.append(list(reversed(sequence)))
+    return paths
+
+
+def _freeze_endpoint_trace_view(exchange_data: dict, styles):
+    paths = _freeze_endpoint_paths(
+        exchange_data,
+        list(CASE.get("victim_addresses") or []),
+        str(CASE.get("recipient_address") or ""),
+        HOPS,
+    )
+    if not paths:
+        return []
+
+    def _fmt_btc(value: float) -> str:
+        digits = 4 if abs(value) >= 1 else 8
+        return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+
+    palette = {
+        "victim": ("#ECFDF5", "#0F766E"),
+        "recipient": ("#FFF7ED", "#C2410C"),
+        "exchange": ("#F0FDF4", "#166534"),
+        "address": ("#F8FAFC", "#64748B"),
+    }
+
+    story = [
+        Paragraph("Focused endpoint trace view:", styles["h2"]),
+        Paragraph(
+            "The following path view isolates only those traced nodes that lead into the exchange endpoints referenced by this freeze request.",
+            styles["small"],
+        ),
+        Spacer(1, 5),
+    ]
+
+    for path in paths:
+        row = []
+        col_widths = []
+        for idx, node in enumerate(path):
+            kind = node.get("kind", "address")
+            fill, stroke = palette.get(kind, palette["address"])
+            body = (
+                f"<b>{node['title']}</b><br/>"
+                f"<font face='Courier'>{node['subtitle']}</font><br/>"
+                f"{_fmt_btc(float(node.get('amount_btc') or 0.0))} BTC"
+            )
+            box = Table([[Paragraph(body, ParagraphStyle(
+                "freeze_path_box",
+                parent=styles["body"],
+                fontSize=7.3,
+                leading=9.2,
+                textColor=C_DARK,
+            ))]], colWidths=[34 * mm])
+            box.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(fill)),
+                ("BOX", (0, 0), (-1, -1), 1.0, colors.HexColor(stroke)),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            row.append(box)
+            col_widths.append(34 * mm)
+            if idx < len(path) - 1:
+                row.append(Paragraph("→", ParagraphStyle(
+                    "freeze_arrow",
+                    parent=styles["body_bold"],
+                    alignment=TA_CENTER,
+                    fontSize=11,
+                    textColor=C_GREY,
+                )))
+                col_widths.append(7 * mm)
+
+        row_tbl = Table([row], colWidths=col_widths)
+        row_tbl.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.append(row_tbl)
+        story.append(Spacer(1, 6))
+
+    return story
+
+
 def _styles():
     s = {}
     s["h1"] = ParagraphStyle("h1", fontSize=13, fontName="Helvetica-Bold",
@@ -931,17 +1124,7 @@ def _freeze_request(exchange_data, styles, output_path):
 
     story.append(Paragraph("Exchange attribution summary:", styles["h2"]))
     addr_rows = _freeze_summary_rows(exchange_data)
-    addr_tbl = Table(addr_rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
-    addr_tbl.setStyle(TableStyle([
-        ("FONTNAME",      (0,0), (0,-1), "Helvetica-Bold"),
-        ("FONTSIZE",      (0,0), (-1,-1), 8.5),
-        ("BACKGROUND",    (0,0), (-1,-1), colors.HexColor("#FDEDEE")),
-        ("GRID",          (0,0), (-1,-1), 0.3, C_BORDER),
-        ("BOX",           (0,0), (-1,-1), 1.5, C_ALERT),
-        ("TOPPADDING",    (0,0), (-1,-1), 5),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
-        ("LEFTPADDING",   (0,0), (-1,-1), 8),
-    ]))
+    addr_tbl = _freeze_summary_table(addr_rows, styles)
     story.append(addr_tbl)
     story.append(Spacer(1, 8))
 
@@ -962,6 +1145,8 @@ def _freeze_request(exchange_data, styles, output_path):
     ]))
     story.append(address_tbl)
     story.append(Spacer(1, 8))
+
+    story += _freeze_endpoint_trace_view(exchange_data, styles)
 
     # Originating transaction
     _fraud_txid = HOPS[0]["txid"] if HOPS else ""

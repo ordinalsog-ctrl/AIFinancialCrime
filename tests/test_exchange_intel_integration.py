@@ -378,6 +378,67 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
 
         self.assertIn(["Attributed deposit address", "33qXiU6YcrZv2YBi2mCoYKgEohiN2REkJ2"], rows)
 
+    def test_freeze_endpoint_paths_follow_only_exchange_request_targets(self) -> None:
+        paths = gcr._freeze_endpoint_paths(
+            {
+                "name": "Huobi",
+                "address": "1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr",
+                "btc_involved": 0.41239610,
+                "all_addresses": [
+                    ("1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr", 0.19999805),
+                    ("1B2opjpPPJNVQHmCjyxqnGP6mLq4wQcPgg", 0.21239805),
+                ],
+            },
+            ["bc1qvictim1", "bc1qvictim2"],
+            "bc1qrecipient",
+            [
+                {
+                    "hop": 0,
+                    "txid": "tx-hop-0",
+                    "from_addresses": [("bc1qvictim1", 0.2), ("bc1qvictim2", 0.2124062)],
+                    "to_addresses": [("bc1qrecipient", 0.4124062)],
+                    "confidence": "L1",
+                    "confidence_label": "Mathematically proven",
+                    "exchange_addresses": [],
+                },
+                {
+                    "hop": 1,
+                    "txid": "tx-hop-1",
+                    "from_addresses": [("bc1qrecipient", 0.4124062)],
+                    "to_addresses": [("bc1qnext1", 0.2124), ("bc1qnext2", 0.2)],
+                    "confidence": "L1",
+                    "confidence_label": "Mathematically proven",
+                    "exchange_addresses": [],
+                },
+                {
+                    "hop": 2,
+                    "txid": "tx-hop-2a",
+                    "from_addresses": [("bc1qnext1", 0.2124)],
+                    "to_addresses": [("1B2opjpPPJNVQHmCjyxqnGP6mLq4wQcPgg", 0.21239805)],
+                    "confidence": "L2",
+                    "confidence_label": "Forensically corroborated",
+                    "exchange": "Huobi",
+                    "exchange_addresses": ["1B2opjpPPJNVQHmCjyxqnGP6mLq4wQcPgg"],
+                },
+                {
+                    "hop": 2,
+                    "txid": "tx-hop-2b",
+                    "from_addresses": [("bc1qnext2", 0.2)],
+                    "to_addresses": [("1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr", 0.19999805)],
+                    "confidence": "L2",
+                    "confidence_label": "Forensically corroborated",
+                    "exchange": "Huobi",
+                    "exchange_addresses": ["1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr"],
+                },
+            ],
+        )
+
+        self.assertEqual(len(paths), 2)
+        self.assertEqual(paths[0][-1]["title"], "Huobi")
+        self.assertEqual(paths[1][-1]["title"], "Huobi")
+        self.assertEqual(paths[0][0]["title"], "Victim inputs")
+        self.assertEqual(paths[1][0]["title"], "Victim inputs")
+
 
 if __name__ == "__main__":
     unittest.main()
