@@ -135,7 +135,12 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
 
     for hop in all_hops:
         hop_index = int(hop.get("hop") or 0)
-        from_column = 0 if hop_index == 0 else hop_index
+        known_source_columns = [
+            node_map[addr]["column"]
+            for addr, _ in (hop.get("from_addresses") or [])
+            if addr and addr in node_map
+        ]
+        from_column = min(known_source_columns) if known_source_columns else (0 if hop_index == 0 else hop_index)
         to_column = from_column + 1
         from_entries = [tuple(item) for item in (hop.get("from_addresses") or [])]
         to_entries = [tuple(item) for item in (hop.get("to_addresses") or [])]
@@ -216,9 +221,9 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
     for node in node_map.values():
         node["short_address"] = _short_address(node["address"])
         if node["kind"] == "victim":
-            node["display_label"] = "Opfer"
+            node["display_label"] = "Victim"
         elif node["kind"] == "recipient":
-            node["display_label"] = "Empfänger"
+            node["display_label"] = "Recipient"
         elif node["kind"] == "exchange":
             node["display_label"] = node.get("exchange") or "Exchange"
         else:
@@ -226,7 +231,7 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
 
     nodes = sorted(node_map.values(), key=lambda item: (item["column"], item["kind"], item["address"]))
     exchange_count = sum(1 for node in nodes if node.get("kind") == "exchange")
-    lanes = [{"column": 0, "label": "Opfer"}] + [
+    lanes = [{"column": 0, "label": "Victim"}] + [
         {"column": column, "label": f"Hop {column - 1}"}
         for column in range(1, max_column + 1)
     ]
