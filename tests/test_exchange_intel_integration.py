@@ -438,6 +438,10 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
         self.assertEqual(paths[1][-1]["title"], "Huobi")
         self.assertEqual(paths[0][0]["title"], "Victim inputs")
         self.assertEqual(paths[1][0]["title"], "Victim inputs")
+        self.assertAlmostEqual(paths[0][1]["amount_btc"], 0.4124062)
+        self.assertAlmostEqual(paths[0][2]["amount_btc"], 0.2)
+        self.assertAlmostEqual(paths[1][1]["amount_btc"], 0.4124062)
+        self.assertAlmostEqual(paths[1][2]["amount_btc"], 0.2124)
 
 
 if __name__ == "__main__":

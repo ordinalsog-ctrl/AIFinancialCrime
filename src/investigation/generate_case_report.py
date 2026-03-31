@@ -148,8 +148,6 @@ def _freeze_summary_table(rows: list[list[str]], styles) -> Table:
 
 
 def _freeze_endpoint_paths(exchange_data: dict, victim_addresses: list[str], recipient_address: str, hops: list[dict]) -> list[list[dict]]:
-    from src.api.report_helpers import _build_flow_graph
-
     def _short(address: str, left: int = 12, right: int = 8) -> str:
         if not address:
             return "—"
@@ -167,58 +165,73 @@ def _freeze_endpoint_paths(exchange_data: dict, victim_addresses: list[str], rec
             return "Victim inputs"
         return "Traced address"
 
-    def _node_amount(node: dict) -> float:
-        if node.get("kind") == "exchange":
-            return float(node.get("display_in_btc") or node.get("total_in_btc") or 0.0)
-        return float(
-            max(
-                node.get("display_in_btc") or 0.0,
-                node.get("display_out_btc") or 0.0,
-                node.get("total_in_btc") or 0.0,
-                node.get("total_out_btc") or 0.0,
-            )
-        )
+    def _as_float(value) -> float:
+        try:
+            return float(value or 0.0)
+        except Exception:
+            return 0.0
 
-    graph = _build_flow_graph(victim_addresses, recipient_address, hops)
-    node_by_id = {node["id"]: node for node in graph.get("nodes", [])}
-    incoming: dict[str, list[dict]] = {}
-    for edge in graph.get("edges", []):
-        incoming.setdefault(edge.get("to", ""), []).append(edge)
+    def _producer_for(address: str):
+        best = None
+        for hop in hops:
+            from_addrs = {addr for addr, _ in (hop.get("from_addresses") or []) if addr}
+            for to_addr, amount in hop.get("to_addresses") or []:
+                if to_addr == address and to_addr not in from_addrs:
+                    best = (hop, _as_float(amount))
+        return best
+
+    def _node_kind(address: str, exchange_name: str = "") -> str:
+        if exchange_name:
+            return "exchange"
+        if address == recipient_address:
+            return "recipient"
+        if address in victim_addresses:
+            return "victim"
+        return "address"
 
     target_addresses = [addr for addr, _ in (exchange_data.get("all_addresses") or [(exchange_data["address"], exchange_data["btc_involved"])])]
     paths: list[list[dict]] = []
     for target in target_addresses:
-        if target not in node_by_id:
+        produced = _producer_for(target)
+        if not produced:
             continue
-        current = target
+        current_address = target
+        current_amount = produced[1]
+        current_exchange = exchange_data.get("name", "")
         visited: set[str] = set()
         sequence: list[dict] = []
-        while current and current not in visited and current in node_by_id:
-            visited.add(current)
-            node = node_by_id[current]
+        while current_address and current_address not in visited:
+            visited.add(current_address)
             sequence.append({
-                "kind": node.get("kind", "address"),
-                "title": _node_title(node),
-                "subtitle": _short(node.get("address", "")),
-                "amount_btc": _node_amount(node),
+                "kind": _node_kind(current_address, current_exchange),
+                "title": current_exchange or _node_title({"kind": _node_kind(current_address), "exchange": ""}),
+                "subtitle": _short(current_address),
+                "amount_btc": current_amount,
             })
-            in_edges = [edge for edge in incoming.get(current, []) if edge.get("from") != current]
-            if not in_edges:
+            produced = _producer_for(current_address)
+            if not produced:
                 break
-            if len(in_edges) > 1:
-                source_nodes = [node_by_id.get(edge.get("from", ""), {}) for edge in in_edges]
-                if all(src.get("kind") == "victim" for src in source_nodes if src):
+            producer_hop, _producer_amount = produced
+            from_entries = [(addr, _as_float(amount)) for addr, amount in (producer_hop.get("from_addresses") or []) if addr]
+            if not from_entries:
+                break
+            if len(from_entries) > 1:
+                victim_entries = [item for item in from_entries if item[0] in victim_addresses]
+                if victim_entries:
                     sequence.append({
                         "kind": "victim",
                         "title": "Victim inputs",
-                        "subtitle": f"{len(source_nodes)} addresses",
-                        "amount_btc": sum(float(edge.get("amount_btc") or 0.0) for edge in in_edges),
+                        "subtitle": f"{len(victim_entries)} addresses",
+                        "amount_btc": current_amount,
                     })
                     break
-                chosen = max(in_edges, key=lambda edge: float(edge.get("amount_btc") or 0.0))
-            else:
-                chosen = in_edges[0]
-            current = chosen.get("from", "")
+                break
+
+            parent_address, parent_input_amount = from_entries[0]
+            parent_produced = _producer_for(parent_address)
+            current_address = parent_address
+            current_exchange = ""
+            current_amount = parent_produced[1] if parent_produced else parent_input_amount
         paths.append(list(reversed(sequence)))
     return paths
 
