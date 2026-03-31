@@ -236,6 +236,61 @@ def _freeze_endpoint_paths(exchange_data: dict, victim_addresses: list[str], rec
     return paths
 
 
+def _freeze_endpoint_branch_traces(exchange_data: dict, victim_addresses: list[str], hops: list[dict]) -> list[dict]:
+    def _as_float(value) -> float:
+        try:
+            return float(value or 0.0)
+        except Exception:
+            return 0.0
+
+    def _producer_for(address: str):
+        best = None
+        for hop in hops:
+            from_addrs = {addr for addr, _ in (hop.get("from_addresses") or []) if addr}
+            for to_addr, amount in hop.get("to_addresses") or []:
+                if to_addr == address and to_addr not in from_addrs:
+                    best = (hop, _as_float(amount))
+        return best
+
+    target_amounts = dict(exchange_data.get("all_addresses") or [(exchange_data["address"], exchange_data["btc_involved"])])
+    traces: list[dict] = []
+    for target in target_amounts:
+        produced = _producer_for(target)
+        if not produced:
+            continue
+        current = target
+        visited: set[str] = set()
+        steps_rev: list[dict] = []
+        while current and current not in visited:
+            visited.add(current)
+            produced = _producer_for(current)
+            if not produced:
+                break
+            hop, branch_amount = produced
+            from_entries = [(addr, _as_float(amount)) for addr, amount in (hop.get("from_addresses") or []) if addr]
+            victim_entries = [item for item in from_entries if item[0] in victim_addresses]
+            step_sources = victim_entries if len(from_entries) > 1 and victim_entries else from_entries
+            steps_rev.append({
+                "hop": hop.get("hop"),
+                "label": hop.get("label", ""),
+                "txid": hop.get("txid", ""),
+                "block": hop.get("block", ""),
+                "timestamp": hop.get("timestamp", ""),
+                "from_entries": step_sources,
+                "to_address": current,
+                "to_amount": branch_amount,
+            })
+            if len(from_entries) != 1:
+                break
+            current = from_entries[0][0]
+        traces.append({
+            "endpoint_address": target,
+            "endpoint_btc": _as_float(target_amounts.get(target)),
+            "steps": list(reversed(steps_rev)),
+        })
+    return traces
+
+
 def _freeze_endpoint_trace_view(exchange_data: dict, styles):
     paths = _freeze_endpoint_paths(
         exchange_data,
@@ -311,6 +366,80 @@ def _freeze_endpoint_trace_view(exchange_data: dict, styles):
         ]))
         story.append(row_tbl)
         story.append(Spacer(1, 6))
+
+    return story
+
+
+def _freeze_endpoint_transaction_evidence(exchange_data: dict, styles):
+    traces = _freeze_endpoint_branch_traces(
+        exchange_data,
+        list(CASE.get("victim_addresses") or []),
+        HOPS,
+    )
+    if not traces:
+        return []
+
+    def _fmt_btc(value: float) -> str:
+        digits = 4 if abs(value) >= 1 else 8
+        return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+
+    story = [
+        Paragraph("Branch-specific transaction evidence:", styles["h2"]),
+        Paragraph(
+            "Each branch below documents the transaction path and addresses that led into the exchange endpoint(s) referenced by this freeze request.",
+            styles["small"],
+        ),
+        Spacer(1, 5),
+    ]
+
+    for trace in traces:
+        header = Table(
+            [[Paragraph(
+                f"Endpoint: <b>{trace['endpoint_address']}</b>  |  BTC traced: <b>{_fmt_btc(trace['endpoint_btc'])} BTC</b>",
+                styles["body_bold"],
+            )]],
+            colWidths=[PAGE_W - 2 * MARGIN],
+        )
+        header.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#EEF4FF")),
+            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#C7D6EB")),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        story.append(header)
+        story.append(Spacer(1, 4))
+
+        for step in trace["steps"]:
+            from_lines = []
+            for addr, amount in step.get("from_entries", []):
+                from_lines.append(f"{addr}  <b>{_fmt_btc(float(amount or 0.0))} BTC</b>")
+            from_body = "<br/>".join(from_lines) if from_lines else "—"
+            to_body = f"{step['to_address']}  <b>{_fmt_btc(float(step.get('to_amount') or 0.0))} BTC</b>"
+            detail_rows = [
+                ["Step", f"Hop {step.get('hop', '—')} - {step.get('label', '')}"],
+                ["TXID", Paragraph(str(step.get("txid", "")), styles["mono"])],
+                ["Block / Time", f"{step.get('block', '—')}  |  {step.get('timestamp', '—')}"],
+                ["From", Paragraph(from_body, styles["mono"])],
+                ["To", Paragraph(to_body, styles["mono"])],
+            ]
+            step_tbl = Table(detail_rows, colWidths=[25 * mm, PAGE_W - 2 * MARGIN - 25 * mm])
+            step_tbl.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [C_WHITE, C_LIGHT]),
+                ("GRID", (0, 0), (-1, -1), 0.3, C_BORDER),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(step_tbl)
+            story.append(Spacer(1, 5))
+
+        story.append(Spacer(1, 4))
 
     return story
 
@@ -1160,6 +1289,7 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(Spacer(1, 8))
 
     story += _freeze_endpoint_trace_view(exchange_data, styles)
+    story += _freeze_endpoint_transaction_evidence(exchange_data, styles)
 
     # Originating transaction
     _fraud_txid = HOPS[0]["txid"] if HOPS else ""
