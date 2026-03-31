@@ -1213,13 +1213,24 @@ function showEdgeDetails(edgeId) {
     edge.is_sanctioned ? '<span class="detail-chip danger">Sanctions Flag</span>' : '',
     reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
   ].filter(Boolean).join('');
+  const amountText = edge.amount_context === 'aggregate_transaction'
+    ? 'Aggregate multi-input / multi-output transaction. Please refer to the Chain of Custody section for exact output-level amounts.'
+    : edge.amount_context === 'input_contribution'
+      ? `${formatBtc(edge.amount_btc)} BTC (input contribution within the aggregated transaction)`
+      : `${formatBtc(edge.amount_btc)} BTC`;
+  const amountBasis = edge.amount_context === 'input_contribution'
+    ? 'Input contribution'
+    : edge.amount_context === 'aggregate_transaction'
+      ? 'Aggregate transaction context'
+      : 'Output amount';
   document.getElementById('graphDetails').innerHTML = `
     <h4>Edge Details</h4>
     <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
     <div class="detail-list">
       <div class="detail-item"><strong>Transaction ID</strong><div>${escapeHtml(edge.txid)}</div></div>
       <div class="detail-item"><strong>From → To</strong><div>${escapeHtml(edge.from)} → ${escapeHtml(edge.to)}</div></div>
-      <div class="detail-item"><strong>Amount</strong><div>${formatBtc(edge.amount_btc)} BTC</div></div>
+      <div class="detail-item"><strong>Amount</strong><div>${escapeHtml(amountText)}</div></div>
+      <div class="detail-item"><strong>Amount Basis</strong><div>${escapeHtml(amountBasis)}</div></div>
       <div class="detail-item"><strong>Method</strong><div>${escapeHtml(edge.method || '—')}</div></div>
       <div class="detail-item"><strong>Hop / Timestamp</strong><div>Hop ${edge.hop} · ${escapeHtml(edge.timestamp || '—')}</div></div>
       <div class="detail-item"><strong>Notes</strong><div>${escapeHtml(edge.notes || '—')}</div></div>

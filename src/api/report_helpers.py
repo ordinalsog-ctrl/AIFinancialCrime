@@ -147,6 +147,9 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
         exchange_addresses = set(hop.get("exchange_addresses") or [])
         exchange_name = str(hop.get("exchange") or "")
         from_addrs = {addr for addr, _ in from_entries if addr}
+        effective_targets = [(addr, amt) for addr, amt in to_entries if addr and addr not in from_addrs]
+        source_count = len([addr for addr, _ in from_entries if addr])
+        target_count = len(effective_targets)
 
         for addr, amount in from_entries:
             if not addr:
@@ -194,9 +197,22 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
                     continue
                 edge_id = f"{hop.get('txid', '')}:{src_addr}:{addr}:{len(edges)}"
                 try:
-                    edge_amount = float(amount or 0)
+                    src_amount = float(_src_amount or 0)
                 except Exception:
-                    edge_amount = 0.0
+                    src_amount = 0.0
+                try:
+                    dst_amount = float(amount or 0)
+                except Exception:
+                    dst_amount = 0.0
+                if source_count <= 1:
+                    edge_amount = dst_amount
+                    amount_context = "output_amount"
+                elif target_count == 1:
+                    edge_amount = src_amount
+                    amount_context = "input_contribution"
+                else:
+                    edge_amount = None
+                    amount_context = "aggregate_transaction"
                 edges.append(
                     {
                         "id": edge_id,
@@ -204,6 +220,7 @@ def _build_flow_graph(victim_addresses: list[str], recipient_address: str, all_h
                         "from": src_addr,
                         "to": addr,
                         "amount_btc": edge_amount,
+                        "amount_context": amount_context,
                         "hop": hop_index,
                         "confidence": hop.get("confidence", ""),
                         "confidence_label": hop.get("confidence_label", ""),

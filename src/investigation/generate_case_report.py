@@ -517,12 +517,13 @@ def _transaction_graph(styles):
             fillColor=None,
         ))
 
-        edge_amount = _fmt_btc(edge.get("amount_btc"))
-        label_x = (bend_a + bend_b) / 2
-        label_y = (start_y + end_y) / 2 + (4 if end_y >= start_y else -7)
-        d.add(String(label_x, label_y, f"{edge_amount} BTC",
-                     fontSize=4.6, fontName="Helvetica",
-                     fillColor=C_GREY, textAnchor="middle"))
+        if edge.get("amount_btc") is not None:
+            edge_amount = _fmt_btc(edge.get("amount_btc"))
+            label_x = (bend_a + bend_b) / 2
+            label_y = (start_y + end_y) / 2 + (4 if end_y >= start_y else -7)
+            d.add(String(label_x, label_y, f"{edge_amount} BTC",
+                         fontSize=4.6, fontName="Helvetica",
+                         fillColor=C_GREY, textAnchor="middle"))
 
     for node in nodes:
         box = positions[node["id"]]

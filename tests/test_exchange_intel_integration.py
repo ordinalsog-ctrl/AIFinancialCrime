@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from src.api import report_endpoint
+from src.api import report_helpers
 
 
 class _FakeResponse:
@@ -247,6 +248,48 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["hops_found"], 2)
         self.assertEqual(payload["exchanges_identified"], ["Coinbase"])
         self.assertEqual(payload["freeze_requests_generated"], 1)
+
+    def test_flow_graph_uses_input_contribution_for_multi_input_single_target(self) -> None:
+        graph = report_helpers._build_flow_graph(
+            ["bc1qvictim1", "bc1qvictim2"],
+            "bc1qrecipient",
+            [
+                {
+                    "hop": 0,
+                    "txid": "tx-hop-0",
+                    "from_addresses": [("bc1qvictim1", 0.4), ("bc1qvictim2", 0.6)],
+                    "to_addresses": [("bc1qrecipient", 1.0)],
+                    "confidence": "L1",
+                    "confidence_label": "Mathematically proven",
+                }
+            ],
+        )
+
+        edge_by_source = {edge["from"]: edge for edge in graph["edges"]}
+        self.assertEqual(edge_by_source["bc1qvictim1"]["amount_context"], "input_contribution")
+        self.assertEqual(edge_by_source["bc1qvictim2"]["amount_context"], "input_contribution")
+        self.assertEqual(edge_by_source["bc1qvictim1"]["amount_btc"], 0.4)
+        self.assertEqual(edge_by_source["bc1qvictim2"]["amount_btc"], 0.6)
+
+    def test_flow_graph_marks_multi_input_multi_output_edge_amount_as_aggregate(self) -> None:
+        graph = report_helpers._build_flow_graph(
+            ["bc1qvictim1", "bc1qvictim2"],
+            "bc1qrecipient1",
+            [
+                {
+                    "hop": 0,
+                    "txid": "tx-hop-0",
+                    "from_addresses": [("bc1qvictim1", 0.4), ("bc1qvictim2", 0.6)],
+                    "to_addresses": [("bc1qrecipient1", 0.5), ("bc1qrecipient2", 0.5)],
+                    "confidence": "L1",
+                    "confidence_label": "Mathematically proven",
+                }
+            ],
+        )
+
+        self.assertTrue(graph["edges"])
+        self.assertTrue(all(edge["amount_context"] == "aggregate_transaction" for edge in graph["edges"]))
+        self.assertTrue(all(edge["amount_btc"] is None for edge in graph["edges"]))
 
 
 if __name__ == "__main__":
