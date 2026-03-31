@@ -126,6 +126,7 @@
   .stat-card{background:rgba(10,14,23,0.45);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:left}
   .stat-card .stat-label{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
   .stat-card .stat-value{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text)}
+  .stat-card .stat-sub{margin-top:6px;font-size:10px;line-height:1.4;color:var(--text3);font-family:var(--mono)}
   .stat-card.exchange .stat-value{color:#fbbf24}
   .stat-card.success .stat-value{color:#34d399}
   .stat-card.accent .stat-value{color:#7dd3fc}
@@ -1109,8 +1110,8 @@ function chainEndMeta(reason) {
   return map[reason] || null;
 }
 
-function renderStatCard(label, value, tone = '') {
-  return `<div class="stat-card ${tone}"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(String(value))}</div></div>`;
+function renderStatCard(label, value, tone = '', subtext = '') {
+  return `<div class="stat-card ${tone}"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(String(value))}</div>${subtext ? `<div class="stat-sub">${escapeHtml(subtext)}</div>` : ''}</div>`;
 }
 
 function renderAddressChips(entries) {
@@ -1567,6 +1568,10 @@ function showResult() {
   showSection('secResult');
   const hops = resultData.hops || [];
   const graph = resultData.graph || { nodes: [], edges: [], stats: {} };
+  const normalizedGraph = normalizeFlowGraph(graph);
+  const rawNodeCount = graph.stats?.node_count || 0;
+  const visibleNodeCount = normalizedGraph?.stats?.node_count || 0;
+  const rawVictimNodeCount = (graph.nodes || []).filter(node => node.kind === 'victim').length;
   document.getElementById('resultDesc').textContent =
     `Case ${resultData.case_id} · ${resultData.hops_found} hops analysed`;
 
@@ -1580,7 +1585,7 @@ function showResult() {
     <h3>Analysis Result</h3>
     <div class="result-stats">
       ${renderStatCard('Hops', resultData.hops_found, 'accent')}
-      ${renderStatCard('Graph Nodes', graph.stats?.node_count || 0)}
+      ${renderStatCard('Graph Nodes', rawNodeCount, '', `Victim inputs: ${rawVictimNodeCount}${visibleNodeCount !== rawNodeCount ? ` · Visible: ${visibleNodeCount}` : ''}`)}
       ${renderStatCard('Exchanges', resultData.exchanges_identified?.length || 0, 'exchange')}
       ${renderStatCard('Sanctions Flags', resultData.sanctioned_addresses || 0, resultData.sanctioned_addresses ? 'exchange' : 'success')}
     </div>
