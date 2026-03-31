@@ -15,7 +15,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;min-height:100vh}
   body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(29,111,164,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(29,111,164,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
-  .container{max-width:1180px;margin:0 auto;padding:40px 24px;position:relative;z-index:1}
+  .container{max-width:1480px;margin:0 auto;padding:40px 24px;position:relative;z-index:1}
   .header{display:flex;align-items:center;gap:16px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--border);flex-wrap:wrap}
   .logo{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:16px;font-weight:600;color:white}
   .header-text h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
@@ -129,14 +129,14 @@
   .stat-card.exchange .stat-value{color:#fbbf24}
   .stat-card.success .stat-value{color:#34d399}
   .stat-card.accent .stat-value{color:#7dd3fc}
-  .graph-shell{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;margin-top:18px;align-items:start}
+  .graph-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:18px;align-items:start}
   .graph-panel,.graph-details,.timeline-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px}
-  .graph-panel{padding:16px}
-  .graph-details{padding:18px;position:sticky;top:24px}
+  .graph-panel{padding:14px}
+  .graph-details{padding:16px;position:static}
   .graph-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
-  .graph-toolbar h4{font-size:14px;font-weight:600;letter-spacing:-0.01em}
-  .graph-toolset{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .graph-toolbtn{background:rgba(29,111,164,0.12);border:1px solid rgba(29,111,164,0.28);color:#93c5fd;border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--mono);cursor:pointer;transition:all 0.2s}
+  .graph-toolbar h4{font-size:13px;font-weight:600;letter-spacing:-0.01em}
+  .graph-toolset{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .graph-toolbtn{background:rgba(29,111,164,0.12);border:1px solid rgba(29,111,164,0.28);color:#93c5fd;border-radius:8px;padding:6px 10px;font-size:11px;font-family:var(--mono);cursor:pointer;transition:all 0.2s}
   .graph-toolbtn:hover{border-color:var(--accent);background:rgba(29,111,164,0.2);color:white}
   .graph-legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .legend-pill,.detail-chip,.route-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:11px;font-family:var(--mono);border:1px solid transparent}
@@ -148,7 +148,7 @@
   .detail-chip.accent{background:rgba(29,111,164,0.16);color:#7dd3fc;border-color:rgba(29,111,164,0.28)}
   .detail-chip.warn{background:rgba(180,83,9,0.16);color:#fbbf24;border-color:rgba(180,83,9,0.28)}
   .detail-chip.danger{background:rgba(155,28,28,0.14);color:#fda4af;border-color:rgba(155,28,28,0.28)}
-  .graph-viewport{overflow:auto;border:1px solid rgba(30,45,69,0.9);border-radius:12px;background:radial-gradient(circle at top left, rgba(29,111,164,0.09), transparent 30%), linear-gradient(180deg, rgba(10,14,23,0.82), rgba(17,24,39,0.95));min-height:520px;padding:12px}
+  .graph-viewport{overflow:auto;border:1px solid rgba(30,45,69,0.9);border-radius:12px;background:radial-gradient(circle at top left, rgba(29,111,164,0.09), transparent 30%), linear-gradient(180deg, rgba(10,14,23,0.82), rgba(17,24,39,0.95));min-height:420px;max-height:72vh;padding:8px}
   .graph-canvas{position:relative;transform-origin:top left;transition:transform 0.18s ease}
   .graph-svg{position:absolute;inset:0;overflow:visible}
   .graph-edge{fill:none;stroke:rgba(148,163,184,0.35);stroke-linecap:round;cursor:pointer;transition:stroke 0.18s ease,stroke-width 0.18s ease,filter 0.18s ease}
@@ -157,23 +157,23 @@
   .graph-edge.exchange{stroke:rgba(251,191,36,0.92)}
   .graph-edge.pooling{stroke:rgba(248,113,113,0.92);stroke-dasharray:8 7}
   .graph-edge.selected{stroke-width:6 !important;filter:drop-shadow(0 0 8px rgba(125,211,252,0.45))}
-  .graph-lane-label{position:absolute;top:14px;padding:7px 12px;border-radius:999px;background:rgba(17,24,39,0.96);border:1px solid rgba(29,111,164,0.28);color:#93c5fd;font-size:11px;font-family:var(--mono);text-align:center;letter-spacing:0.08em;text-transform:uppercase}
-  .graph-node-card{position:absolute;width:220px;min-height:82px;padding:12px 14px;border-radius:14px;border:1px solid rgba(148,163,184,0.16);background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(10,14,23,0.98));color:var(--text);text-align:left;cursor:pointer;transition:transform 0.16s ease,border-color 0.16s ease,box-shadow 0.16s ease;box-shadow:0 10px 30px rgba(2,6,23,0.22)}
+  .graph-lane-label{position:absolute;top:10px;padding:6px 10px;border-radius:999px;background:rgba(17,24,39,0.96);border:1px solid rgba(29,111,164,0.28);color:#93c5fd;font-size:10px;font-family:var(--mono);text-align:center;letter-spacing:0.08em;text-transform:uppercase}
+  .graph-node-card{position:absolute;width:176px;min-height:68px;padding:10px 11px;border-radius:12px;border:1px solid rgba(148,163,184,0.16);background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(10,14,23,0.98));color:var(--text);text-align:left;cursor:pointer;transition:transform 0.16s ease,border-color 0.16s ease,box-shadow 0.16s ease;box-shadow:0 10px 24px rgba(2,6,23,0.22)}
   .graph-node-card:hover{transform:translateY(-2px);border-color:rgba(125,211,252,0.35)}
   .graph-node-card.selected{border-color:rgba(125,211,252,0.85);box-shadow:0 0 0 1px rgba(125,211,252,0.35),0 18px 32px rgba(2,6,23,0.35)}
   .graph-node-card.victim{border-color:rgba(13,122,78,0.34)}
   .graph-node-card.recipient{border-color:rgba(180,83,9,0.38)}
   .graph-node-card.exchange{border-color:rgba(251,191,36,0.38)}
   .graph-node-card.sanctioned{box-shadow:0 0 0 1px rgba(248,113,113,0.35),0 18px 32px rgba(2,6,23,0.35)}
-  .graph-node-title{display:block;font-size:15px;font-weight:600;letter-spacing:-0.02em;margin-bottom:4px;color:var(--text)}
-  .graph-node-subtitle{display:block;font-family:var(--mono);font-size:11px;color:var(--text2);margin-bottom:8px;word-break:break-all}
-  .graph-node-meta{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);font-size:10px;color:var(--text2)}
-  .node-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:10px;font-family:var(--mono);margin-bottom:8px;border:1px solid transparent}
+  .graph-node-title{display:block;font-size:13px;font-weight:600;letter-spacing:-0.02em;margin-bottom:3px;color:var(--text)}
+  .graph-node-subtitle{display:block;font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:6px;word-break:break-all}
+  .graph-node-meta{display:flex;flex-wrap:wrap;gap:4px;font-family:var(--mono);font-size:9px;color:var(--text2)}
+  .node-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 7px;font-size:9px;font-family:var(--mono);margin-bottom:7px;border:1px solid transparent}
   .node-pill.victim{background:rgba(13,122,78,0.12);color:#34d399;border-color:rgba(13,122,78,0.25)}
   .node-pill.recipient{background:rgba(180,83,9,0.14);color:#fbbf24;border-color:rgba(180,83,9,0.25)}
   .node-pill.exchange{background:rgba(251,191,36,0.12);color:#fbbf24;border-color:rgba(251,191,36,0.28)}
   .node-pill.address{background:rgba(148,163,184,0.08);color:#cbd5e1;border-color:rgba(148,163,184,0.2)}
-  .graph-empty{display:flex;align-items:center;justify-content:center;min-height:420px;color:var(--text2);font-family:var(--mono);font-size:12px}
+  .graph-empty{display:flex;align-items:center;justify-content:center;min-height:320px;color:var(--text2);font-family:var(--mono);font-size:12px}
   .graph-details h4{font-size:15px;font-weight:600;margin-bottom:12px;letter-spacing:-0.01em}
   .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
   .detail-block{background:rgba(10,14,23,0.42);border:1px solid rgba(148,163,184,0.14);border-radius:10px;padding:10px 12px}
@@ -184,7 +184,7 @@
   .detail-item strong{display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
   .detail-item span,.detail-item div{font-family:var(--mono);font-size:12px;color:var(--text);word-break:break-word}
   .timeline{display:grid;gap:10px;margin-top:18px}
-  .timeline-card{padding:16px}
+  .timeline-card{padding:14px}
   .timeline-card.exchange{border-color:rgba(251,191,36,0.32)}
   .timeline-card.pooling{border-color:rgba(248,113,113,0.32)}
   .timeline-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;flex-wrap:wrap}
@@ -456,6 +456,7 @@ let txData = null;
 let resultData = null;
 let graphZoom = 1;
 let currentGraphModel = null;
+let currentGraphLayout = null;
 let selectedInputs = new Set();
 let recipientAddr = '';
 let manualAttributions = {}; // {address: exchange_name}
@@ -983,7 +984,7 @@ function setRecipient(addr, idx) {
   updateSelectedCount();
 }
 
-const EXCHANGE_OPTIONS = ['Binance','Coinbase','Kraken','Huobi','Bitfinex','OKX','Bybit','Bitstamp','KuCoin','Gate.io','Gemini','Bittrex','Poloniex','Bitget','MEXC','Andere'];
+const EXCHANGE_OPTIONS = ['Binance','Coinbase','Kraken','Huobi','Bitfinex','OKX','Bybit','Bitstamp','KuCoin','Gate.io','Gemini','Bittrex','Poloniex','Bitget','MEXC','Other'];
 
 function markExchange(addr, idx) {
   const current = manualAttributions[addr];
@@ -1135,7 +1136,7 @@ function renderHopTimeline(hops) {
     return `
       <div class="timeline-card ${tone}">
         <div class="timeline-head">
-          <div class="timeline-title">Hop ${hop.hop} · ${escapeHtml(hop.label || 'Transaktion')}</div>
+          <div class="timeline-title">Hop ${hop.hop} · ${escapeHtml(hop.label || 'Transaction')}</div>
           <div class="timeline-badges">${badges}</div>
         </div>
         <div class="timeline-meta">
@@ -1226,7 +1227,7 @@ function showEdgeDetails(edgeId) {
 }
 
 function setGraphZoom(value) {
-  graphZoom = Math.max(0.7, Math.min(1.8, value));
+  graphZoom = Math.max(0.35, Math.min(2.2, value));
   const canvas = document.getElementById('graphCanvas');
   if (canvas) canvas.style.transform = `scale(${graphZoom})`;
   const label = document.getElementById('graphZoomValue');
@@ -1235,6 +1236,19 @@ function setGraphZoom(value) {
 
 function zoomGraph(delta) {
   setGraphZoom(graphZoom + delta);
+}
+
+function fitGraphToViewport() {
+  const viewport = document.getElementById('graphViewport');
+  if (!viewport || !currentGraphLayout) return;
+  const availableWidth = Math.max(240, viewport.clientWidth - 16);
+  const availableHeight = Math.max(220, viewport.clientHeight - 16);
+  const widthRatio = availableWidth / currentGraphLayout.width;
+  const heightRatio = availableHeight / currentGraphLayout.height;
+  const nextZoom = Math.min(widthRatio, heightRatio, 1);
+  setGraphZoom(nextZoom);
+  viewport.scrollLeft = 0;
+  viewport.scrollTop = 0;
 }
 
 function resetGraphZoom() {
@@ -1262,15 +1276,15 @@ function renderFlowGraph(graph) {
     columns.get(col).sort((a, b) => (kindOrder[a.kind] ?? 99) - (kindOrder[b.kind] ?? 99) || (b.total_in_btc || 0) - (a.total_in_btc || 0) || a.address.localeCompare(b.address));
   }
 
-  const nodeWidth = 220;
-  const nodeHeight = 84;
-  const columnGap = 280;
-  const rowGap = 118;
-  const padX = 40;
-  const padTop = 82;
+  const nodeWidth = 176;
+  const nodeHeight = 72;
+  const columnGap = 208;
+  const rowGap = 92;
+  const padX = 24;
+  const padTop = 58;
   const maxRows = Math.max(1, ...colKeys.map(col => columns.get(col).length));
-  const width = padX * 2 + Math.max(1, colKeys.length) * columnGap + nodeWidth;
-  const height = padTop + maxRows * rowGap + 80;
+  const width = padX * 2 + Math.max(0, colKeys.length - 1) * columnGap + nodeWidth;
+  const height = padTop + Math.max(0, maxRows - 1) * rowGap + nodeHeight + 36;
   const positions = {};
   const laneHtml = [];
   const nodeHtml = [];
@@ -1283,7 +1297,7 @@ function renderFlowGraph(graph) {
       const y = padTop + rowIndex * rowGap;
       positions[node.id] = { x, y };
       const pillClass = node.kind === 'exchange' ? 'exchange' : node.kind === 'victim' ? 'victim' : node.kind === 'recipient' ? 'recipient' : 'address';
-      const pillLabel = node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Opfer' : node.kind === 'recipient' ? 'Empfänger' : 'Adresse';
+      const pillLabel = node.kind === 'exchange' ? (node.exchange || 'Exchange') : node.kind === 'victim' ? 'Victim' : node.kind === 'recipient' ? 'Recipient' : 'Address';
       const meta = [];
       if (node.short_address) meta.push(node.short_address);
       if (Number(node.total_in_btc) > 0) meta.push(`+${formatBtc(node.total_in_btc)} BTC`);
@@ -1307,7 +1321,7 @@ function renderFlowGraph(graph) {
     const startY = from.y + nodeHeight / 2;
     const endX = to.x;
     const endY = to.y + nodeHeight / 2;
-    const bend = Math.max(80, (endX - startX) / 2);
+    const bend = Math.max(38, Math.min(72, (endX - startX) / 2));
     const strokeWidth = Math.max(2, Math.min(6, 1.5 + Math.log10((Number(edge.amount_btc || 0) * 1e8) + 10)));
     const classes = [
       'graph-edge',
@@ -1331,9 +1345,10 @@ function renderFlowGraph(graph) {
     nodeIndex: Object.fromEntries((graph.nodes || []).map(node => [node.id, node])),
     edgeIndex: Object.fromEntries((graph.edges || []).map(edge => [edge.id, edge])),
   };
+  currentGraphLayout = { width, height, nodeWidth, nodeHeight };
   document.querySelectorAll('.graph-node-card').forEach(el => el.addEventListener('click', () => showNodeDetails(el.dataset.nodeId)));
   document.querySelectorAll('.graph-edge').forEach(el => el.addEventListener('click', () => showEdgeDetails(el.dataset.edgeId)));
-  resetGraphZoom();
+  fitGraphToViewport();
   showGraphSummary();
 }
 
@@ -1354,7 +1369,7 @@ async function submitAndAnalyse() {
     });
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(err.detail || 'API-Fehler');
+      throw new Error(err.detail || 'API error');
     }
     resultData = await response.json();
     log(`✅ ${resultData.hops_found} hops identified`, 'ok');
@@ -1398,9 +1413,10 @@ function showResult() {
         <div class="graph-toolbar">
           <h4>Transaction Flow</h4>
           <div class="graph-toolset">
-            <button class="graph-toolbtn" onclick="zoomGraph(-0.1)">−</button>
-            <button class="graph-toolbtn" onclick="resetGraphZoom()">Reset</button>
-            <button class="graph-toolbtn" onclick="zoomGraph(0.1)">+</button>
+            <button class="graph-toolbtn" onclick="fitGraphToViewport()">Fit</button>
+            <button class="graph-toolbtn" onclick="zoomGraph(-0.08)">−</button>
+            <button class="graph-toolbtn" onclick="resetGraphZoom()">100%</button>
+            <button class="graph-toolbtn" onclick="zoomGraph(0.08)">+</button>
             <span class="legend-pill address" id="graphZoomValue">100%</span>
           </div>
         </div>
