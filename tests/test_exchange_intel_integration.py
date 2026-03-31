@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from src.api import report_endpoint
 from src.api import report_helpers
+from src.investigation import generate_case_report as gcr
 
 
 class _FakeResponse:
@@ -338,6 +339,44 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
         self.assertAlmostEqual(recipient["display_out_btc"], 0.41240620)
         self.assertAlmostEqual(recipient["total_in_btc"], 0.62481099)
         self.assertAlmostEqual(recipient["total_out_btc"], 0.41240620)
+
+    def test_freeze_summary_rows_omit_singular_primary_claim_for_multiple_endpoints(self) -> None:
+        rows = gcr._freeze_summary_rows(
+            {
+                "name": "Huobi",
+                "address": "1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr",
+                "btc_involved": 0.41239610,
+                "confidence": "L2",
+                "wallet_id": "",
+                "note": "2 deposit address(es) attributed to this exchange.",
+                "all_addresses": [
+                    ("1DLymHytXsdD2Bhz7Ywa8JpGX7QsQFH1xr", 0.19999805),
+                    ("1B2opjpPPJNVQHmCjyxqnGP6mLq4wQcPgg", 0.21239805),
+                ],
+            }
+        )
+
+        labels = [row[0] for row in rows]
+        self.assertNotIn("Primary deposit address", labels)
+        self.assertNotIn("Attributed deposit address", labels)
+        self.assertIn("Attributed address count", labels)
+
+    def test_freeze_summary_rows_keep_single_deposit_address_for_single_endpoint(self) -> None:
+        rows = gcr._freeze_summary_rows(
+            {
+                "name": "Coinbase",
+                "address": "33qXiU6YcrZv2YBi2mCoYKgEohiN2REkJ2",
+                "btc_involved": 0.25015009,
+                "confidence": "L1",
+                "wallet_id": "",
+                "note": "1 deposit address attributed to this exchange.",
+                "all_addresses": [
+                    ("33qXiU6YcrZv2YBi2mCoYKgEohiN2REkJ2", 0.25015009),
+                ],
+            }
+        )
+
+        self.assertIn(["Attributed deposit address", "33qXiU6YcrZv2YBi2mCoYKgEohiN2REkJ2"], rows)
 
 
 if __name__ == "__main__":

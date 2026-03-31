@@ -91,6 +91,24 @@ def _amount_label() -> str:
     return btc
 
 
+def _freeze_summary_rows(exchange_data: dict) -> list[list[str]]:
+    all_addresses = exchange_data.get("all_addresses") or [
+        (exchange_data["address"], exchange_data["btc_involved"])
+    ]
+    address_count = len(all_addresses)
+    rows = [
+        ["Exchange", exchange_data["name"]],
+        ["Attributed address count", str(address_count)],
+        ["Confidence", f"{exchange_data['confidence']} - Forensically corroborated exchange attribution"],
+        ["Total BTC involved", f"{exchange_data['btc_involved']:.8f} BTC"],
+        ["Attribution basis", exchange_data.get("note", "See attached forensic report.")],
+        ["Wallet ID", exchange_data.get("wallet_id") or "—"],
+    ]
+    if address_count == 1:
+        rows.insert(1, ["Attributed deposit address", all_addresses[0][0]])
+    return rows
+
+
 def _styles():
     s = {}
     s["h1"] = ParagraphStyle("h1", fontSize=13, fontName="Helvetica-Bold",
@@ -909,17 +927,10 @@ def _freeze_request(exchange_data, styles, output_path):
     ))
     story.append(Spacer(1, 8))
 
-    # Identifizierte Adressen
+    all_addresses = exchange_data.get("all_addresses") or [(exchange_data["address"], exchange_data["btc_involved"])]
+
     story.append(Paragraph("Exchange attribution summary:", styles["h2"]))
-    addr_rows = [
-        ["Exchange", exchange_data["name"]],
-        ["Primary deposit address", exchange_data["address"]],
-        ["Attributed address count", str(len(exchange_data.get("all_addresses", [(exchange_data["address"], exchange_data["btc_involved"])])))],
-        ["Confidence", f"{exchange_data['confidence']} - Forensically corroborated exchange attribution"],
-        ["Total BTC involved", f"{exchange_data['btc_involved']:.8f} BTC"],
-        ["Attribution basis", exchange_data.get("note", "See attached forensic report.")],
-        ["Wallet ID", exchange_data.get("wallet_id") or "—"],
-    ]
+    addr_rows = _freeze_summary_rows(exchange_data)
     addr_tbl = Table(addr_rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
     addr_tbl.setStyle(TableStyle([
         ("FONTNAME",      (0,0), (0,-1), "Helvetica-Bold"),
@@ -934,7 +945,6 @@ def _freeze_request(exchange_data, styles, output_path):
     story.append(addr_tbl)
     story.append(Spacer(1, 8))
 
-    all_addresses = exchange_data.get("all_addresses") or [(exchange_data["address"], exchange_data["btc_involved"])]
     story.append(Paragraph("Attributed deposit addresses:", styles["h2"]))
     address_rows = [["Bitcoin address", "BTC traced into endpoint"]]
     for address, btc in all_addresses:
