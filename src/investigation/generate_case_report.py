@@ -292,210 +292,317 @@ def _methodology(styles):
 
 
 def _transaction_graph(styles):
-    """Visueller Transaktionsgraph als ReportLab Drawing."""
-    from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle, PolyLine
-    from reportlab.graphics import renderPDF
+    """Professional trace diagram for the PDF report."""
+    from reportlab.graphics.shapes import Drawing, Rect, String, PolyLine, Line
+    from src.api.report_helpers import _build_flow_graph
+
+    def _short(address: str, left: int = 12, right: int = 8) -> str:
+        if not address:
+            return "—"
+        if len(address) <= left + right + 1:
+            return address
+        return f"{address[:left]}…{address[-right:]}"
+
+    def _fmt_btc(value) -> str:
+        try:
+            num = float(value or 0)
+        except Exception:
+            num = 0.0
+        digits = 4 if abs(num) >= 1 else 8
+        text = f"{num:.{digits}f}".rstrip("0").rstrip(".")
+        return text or "0"
+
+    def _status_label(reason: str) -> str:
+        return {
+            "exchange": "Exchange endpoint",
+            "pooling": "Pooling detected",
+            "unspent": "Unspent UTXO",
+            "lookup_incomplete": "Resolution incomplete",
+        }.get(reason or "", "")
+
+    def _palette(kind: str) -> dict:
+        palettes = {
+            "victim": {
+                "fill": colors.HexColor("#ECFDF5"),
+                "stroke": colors.HexColor("#0F766E"),
+                "tag_fill": colors.HexColor("#CCFBF1"),
+                "tag_text": colors.HexColor("#115E59"),
+                "tag": "VICTIM",
+            },
+            "recipient": {
+                "fill": colors.HexColor("#FFF7ED"),
+                "stroke": colors.HexColor("#C2410C"),
+                "tag_fill": colors.HexColor("#FED7AA"),
+                "tag_text": colors.HexColor("#9A3412"),
+                "tag": "RECIPIENT",
+            },
+            "exchange": {
+                "fill": colors.HexColor("#F0FDF4"),
+                "stroke": colors.HexColor("#166534"),
+                "tag_fill": colors.HexColor("#DCFCE7"),
+                "tag_text": colors.HexColor("#166534"),
+                "tag": "EXCHANGE",
+            },
+            "address": {
+                "fill": colors.HexColor("#F8FAFC"),
+                "stroke": colors.HexColor("#64748B"),
+                "tag_fill": colors.HexColor("#E2E8F0"),
+                "tag_text": colors.HexColor("#475569"),
+                "tag": "TRACED ADDRESS",
+            },
+        }
+        return palettes.get(kind, palettes["address"])
 
     story = [Paragraph("3. Transaction Graph - Overview", styles["h1"])]
     story += _hr()
     story.append(Paragraph(
-        "The following graph shows the traced transaction path of the stolen "
-        "bitcoin. Red nodes indicate suspect-controlled addresses, green nodes indicate identified exchanges, "
-        "and grey nodes indicate intermediaries. Each edge represents an on-chain transaction.",
+        "The diagram below provides a compact evidentiary flow view of the traced bitcoin path. "
+        "Victim-controlled input addresses are grouped where necessary for readability. "
+        "All downstream splits and exchange endpoints remain individually visible. "
+        "Detailed transaction identifiers, block heights, and evidentiary notes are listed in Section 2 (Chain of Custody).",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
 
-    # Canvas
-    W = (PAGE_W - 2*MARGIN)
-    H = 130 * mm
+    victim_addresses = list(CASE.get("victim_addresses") or [])
+    if not victim_addresses and HOPS:
+        victim_addresses = [addr for addr, _ in HOPS[0].get("from_addresses", []) if addr]
+
+    recipient_address = str(CASE.get("recipient_address") or "")
+    if not recipient_address and HOPS:
+        victim_set = set(victim_addresses)
+        for addr, _ in HOPS[0].get("to_addresses", []):
+            if addr and addr not in victim_set:
+                recipient_address = addr
+                break
+
+    graph = _build_flow_graph(victim_addresses, recipient_address, HOPS)
+    nodes = [dict(node) for node in graph.get("nodes", [])]
+    edges = [dict(edge) for edge in graph.get("edges", [])]
+
+    W = PAGE_W - 2 * MARGIN
+    H = 150 * mm
     d = Drawing(W, H)
 
-    # Farben
-    COL_VICTIM   = colors.HexColor("#C0392B")
-    COL_THIEF    = colors.HexColor("#E67E22")
-    COL_INTER    = colors.HexColor("#7F8C8D")
-    COL_EXCHANGE = colors.HexColor("#1E8449")
-    COL_EDGE     = colors.HexColor("#2C3E50")
-    COL_WHITE    = colors.white
-    COL_LIGHT    = colors.HexColor("#ECF0F1")
+    d.add(Rect(0, 0, W, H, rx=10, ry=10,
+               fillColor=colors.HexColor("#FBFCFD"),
+               strokeColor=C_BORDER, strokeWidth=0.7))
 
-    # Dynamischer Graph aus HOPS
-    # Schritt 1: Alle eindeutigen Adressen sammeln
-    addr_roles = {}  # addr -> role: victim/thief/inter/exchange
-    
-    # Opfer-Adressen
-    for addr, _ in (HOPS[0]["from_addresses"] if HOPS else []):
-        if addr:
-            addr_roles[addr] = "victim"
-    
-    # Alle anderen Adressen aus Hops
-    for hop in HOPS:
-        for addr, _ in hop.get("to_addresses", []):
-            if not addr:
-                continue
-            if addr in addr_roles:
-                continue
-            if hop.get("exchange"):
-                addr_roles[addr] = "exchange"
+    if not nodes:
+        d.add(String(W / 2, H / 2, "No trace graph is available for this report.",
+                     fontSize=10, fontName="Helvetica-Bold",
+                     fillColor=C_GREY, textAnchor="middle"))
+        story.append(d)
+        story.append(Spacer(1, 8))
+        return story
+
+    victim_set = {node["address"] for node in nodes if node.get("kind") == "victim"}
+    if len(victim_set) > 1:
+        cluster_id = "__victim_input_cluster__"
+        victim_nodes = [node for node in nodes if node["address"] in victim_set]
+        aggregated_edges: dict[str, dict] = {}
+        preserved_edges: list[dict] = []
+        for edge in edges:
+            if edge.get("from") in victim_set:
+                target = edge.get("to", "")
+                if target not in aggregated_edges:
+                    aggregated_edges[target] = {
+                        **edge,
+                        "id": f"{cluster_id}:{target}",
+                        "from": cluster_id,
+                        "amount_btc": 0.0,
+                        "notes": "Aggregated victim-controlled input set.",
+                    }
+                aggregated_edges[target]["amount_btc"] += float(edge.get("amount_btc") or 0)
             else:
-                addr_roles[addr] = "thief"
-        for addr, _ in hop.get("from_addresses", []):
-            if addr and addr not in addr_roles:
-                addr_roles[addr] = "thief"
+                preserved_edges.append(edge)
+        edges = preserved_edges + list(aggregated_edges.values())
+        nodes = [node for node in nodes if node["address"] not in victim_set]
+        nodes.append({
+            "id": cluster_id,
+            "address": "",
+            "column": 0,
+            "kind": "victim",
+            "exchange": "",
+            "is_sanctioned": any(node.get("is_sanctioned") for node in victim_nodes),
+            "total_in_btc": 0.0,
+            "total_out_btc": sum(float(node.get("total_out_btc") or 0) for node in victim_nodes),
+            "has_change_output": False,
+            "chain_end_reason": "",
+            "display_label": "Victim input set",
+            "short_address": f"{len(victim_nodes)} addresses",
+            "member_count": len(victim_nodes),
+        })
 
-    # Schritt 2: Unique Adressen als Nodes platzieren
-    unique_addrs = list(dict.fromkeys(
-        [a for h in HOPS for a,_ in h.get("from_addresses",[]) + h.get("to_addresses",[]) if a]
-    ))
-    
-    n = len(unique_addrs)
-    nodes = {}
-    for i, addr in enumerate(unique_addrs):
-        role = addr_roles.get(addr, "thief")
-        x_pct = 0.05 + (i / max(n-1, 1)) * 0.90
-        y_pct = 0.5
-        # Staffeln: Opfer oben, Exchanges unten
-        if role == "victim":
-            y_pct = 0.80
-        elif role == "exchange":
-            y_pct = 0.20
-        elif i % 2 == 0:
-            y_pct = 0.65
-        else:
-            y_pct = 0.35
-            
-        col = {"victim": COL_VICTIM, "thief": COL_THIEF,
-               "exchange": COL_EXCHANGE, "inter": COL_INTER}.get(role, COL_THIEF)
-        short = addr[:10] + "..."
-        label = addr[:8] + "..."
-        radius = 11 if role == "exchange" else (10 if role == "victim" else 7)
-        
-        # Exchange Namen
-        ex_name = next((h.get("exchange","") for h in HOPS 
-                       if any(a==addr for a,_ in h.get("to_addresses",[]))), "")
-        sublabel = ex_name if ex_name else f"{short}"
-        if ex_name:
-            label = ex_name
-            
-        nodes[addr] = (x_pct, y_pct, label, sublabel, col, radius)
+    columns: dict[int, list[dict]] = {}
+    for node in nodes:
+        columns.setdefault(int(node.get("column") or 0), []).append(node)
 
-    # Schritt 3: Edges aus Hops
-    edges = []
-    for hop in HOPS:
-        for from_addr, _ in hop.get("from_addresses", []):
-            if not from_addr or from_addr not in nodes:
-                continue
-            for to_addr, _ in hop.get("to_addresses", []):
-                if not to_addr or to_addr not in nodes:
-                    continue
-                conf = hop.get("confidence", "L1")
-                tx_short = hop["txid"][:8] if len(hop["txid"]) == 64 else ""
-                block = hop.get("block", "")
-                edge_label = f"TX {tx_short}\nBlock {block}" if tx_short and conf == "L1" else ""
-                edges.append((from_addr, to_addr, edge_label, conf))
-
-    # Positionen berechnen
-    pos = {}
-    for key, (xp, yp, *_) in nodes.items():
-        pos[key] = (xp * W, yp * H)
-
-    # Edges zeichnen
-    for src, dst, label, conf in edges:
-        if src not in pos or dst not in pos:
-            continue
-        x1, y1 = pos[src]
-        x2, y2 = pos[dst]
-        edge_color = COL_EDGE if conf == "L1" else colors.HexColor("#AEB6BF")
-        dash = None if conf == "L1" else [3, 2]
-
-        line = Line(x1, y1, x2, y2,
-                    strokeColor=edge_color,
-                    strokeWidth=1.2 if conf == "L1" else 0.8,
-                    strokeDashArray=dash)
-        d.add(line)
-
-        # Pfeil-Spitze
-        import math
-        dx, dy = x2 - x1, y2 - y1
-        length = math.sqrt(dx*dx + dy*dy)
-        if length > 0:
-            ux, uy = dx/length, dy/length
-            # Zurücksetzen um Node-Radius
-            nr = (nodes[dst][5] if dst in nodes else 7) + 1
-            ax = x2 - ux * nr
-            ay = y2 - uy * nr
-            # Pfeil
-            perp_x, perp_y = -uy * 3, ux * 3
-            arrow = PolyLine(
-                [ax - ux*6 + perp_x, ay - uy*6 + perp_y,
-                 ax, ay,
-                 ax - ux*6 - perp_x, ay - uy*6 - perp_y],
-                strokeColor=edge_color, strokeWidth=1.2
+    kind_order = {"victim": 0, "recipient": 1, "address": 2, "exchange": 3}
+    for col_nodes in columns.values():
+        col_nodes.sort(
+            key=lambda node: (
+                kind_order.get(node.get("kind", "address"), 9),
+                -(float(node.get("total_in_btc") or 0) + float(node.get("total_out_btc") or 0)),
+                node.get("address", ""),
             )
-            d.add(arrow)
+        )
 
-        # Edge-Label
-        if label and conf == "L1":
-            mx = (x1 + x2) / 2
-            my = (y1 + y2) / 2
-            for i, line_txt in enumerate(label.split("\n")):
-                lbl = String(mx + 2, my + 4 - i*7, line_txt,
-                             fontSize=5, fillColor=COL_EDGE,
-                             textAnchor="middle")
-                d.add(lbl)
+    col_keys = sorted(columns.keys())
+    max_rows = max(len(col_nodes) for col_nodes in columns.values())
+    lane_labels = {int(item.get("column", 0)): str(item.get("label", "")) for item in graph.get("lanes", [])}
+    if any(node.get("id") == "__victim_input_cluster__" for node in nodes):
+        lane_labels[0] = "Victim Inputs"
 
-    # Nodes zeichnen
-    for key, (xp, yp, label, sublabel, col, r) in nodes.items():
-        x, y = pos[key]
+    panel_pad = 10
+    lane_h = 14
+    col_gap = 8
+    top_margin = 10
+    bottom_margin = 34
+    row_gap = 8 if max_rows <= 4 else 6
+    column_count = max(1, len(col_keys))
+    track_w = (W - 2 * panel_pad - (column_count - 1) * col_gap) / column_count
+    node_w = max(60, min(82, track_w - 4))
+    available_h = H - top_margin - bottom_margin - lane_h - 18
+    node_h = max(36, min(52, (available_h - row_gap * max(max_rows - 1, 0)) / max_rows))
+    lane_y = H - top_margin - lane_h
 
-        # Schatten
-        shadow = Circle(x + 1.5, y - 1.5, r,
-                        fillColor=colors.HexColor("#BDC3C7"),
-                        strokeColor=None)
-        d.add(shadow)
+    positions: dict[str, dict] = {}
 
-        # Node
-        circle = Circle(x, y, r, fillColor=col,
-                        strokeColor=COL_WHITE, strokeWidth=1.5)
-        d.add(circle)
+    for idx, col in enumerate(col_keys):
+        x_track = panel_pad + idx * (track_w + col_gap)
+        x_node = x_track + (track_w - node_w) / 2
+        d.add(Rect(x_track, lane_y, track_w, lane_h, rx=6, ry=6,
+                   fillColor=colors.HexColor("#EEF4FF"),
+                   strokeColor=colors.HexColor("#C7D6EB"),
+                   strokeWidth=0.7))
+        d.add(String(x_track + track_w / 2, lane_y + 4.2,
+                     (lane_labels.get(col) or f"Hop {max(col - 1, 0)}").upper(),
+                     fontSize=5.5, fontName="Helvetica-Bold",
+                     fillColor=C_ACCENT, textAnchor="middle"))
 
-        # Label (mehrzeilig)
-        for i, line_txt in enumerate(label.split("\n")):
-            lbl = String(x, y - (len(label.split("\n")) - 1) * 4 + i * 8 - 3,
-                         line_txt, fontSize=5.5,
-                         fillColor=COL_WHITE, textAnchor="middle")
-            d.add(lbl)
+        col_nodes = columns[col]
+        total_col_h = len(col_nodes) * node_h + max(len(col_nodes) - 1, 0) * row_gap
+        start_y = lane_y - 14 - node_h - max(0, (available_h - total_col_h) / 2)
 
-        # Sub-Label unterhalb
-        sub = String(x, y - r - 9, sublabel,
-                     fontSize=5, fillColor=COL_EDGE,
-                     textAnchor="middle")
-        d.add(sub)
+        for row_idx, node in enumerate(col_nodes):
+            y_node = start_y - row_idx * (node_h + row_gap)
+            positions[node["id"]] = {"x": x_node, "y": y_node, "w": node_w, "h": node_h}
 
-    # Legende
+    for edge in edges:
+        src = positions.get(edge.get("from"))
+        dst = positions.get(edge.get("to"))
+        if not src or not dst:
+            continue
+        start_x = src["x"] + src["w"]
+        start_y = src["y"] + src["h"] / 2
+        end_x = dst["x"]
+        end_y = dst["y"] + dst["h"] / 2
+        bend_a = start_x + min(18, max(10, (end_x - start_x) * 0.25))
+        bend_b = end_x - min(18, max(10, (end_x - start_x) * 0.25))
+        line_color = colors.HexColor("#334155") if edge.get("confidence") == "L1" else colors.HexColor("#94A3B8")
+        dash = None if edge.get("confidence") == "L1" else [3, 2]
+
+        d.add(PolyLine(
+            [start_x, start_y, bend_a, start_y, bend_b, end_y, end_x, end_y],
+            strokeColor=line_color,
+            strokeWidth=1.1 if edge.get("confidence") == "L1" else 0.9,
+            strokeDashArray=dash,
+            fillColor=None,
+        ))
+        d.add(PolyLine(
+            [end_x - 4, end_y + 2.4, end_x, end_y, end_x - 4, end_y - 2.4],
+            strokeColor=line_color,
+            strokeWidth=1.0,
+            fillColor=None,
+        ))
+
+        edge_amount = _fmt_btc(edge.get("amount_btc"))
+        label_x = (bend_a + bend_b) / 2
+        label_y = (start_y + end_y) / 2 + (4 if end_y >= start_y else -7)
+        d.add(String(label_x, label_y, f"{edge_amount} BTC",
+                     fontSize=4.6, fontName="Helvetica",
+                     fillColor=C_GREY, textAnchor="middle"))
+
+    for node in nodes:
+        box = positions[node["id"]]
+        palette = _palette(node.get("kind", "address"))
+        x = box["x"]
+        y = box["y"]
+        w = box["w"]
+        h = box["h"]
+
+        d.add(Rect(x, y, w, h, rx=7, ry=7,
+                   fillColor=palette["fill"],
+                   strokeColor=palette["stroke"],
+                   strokeWidth=1.0))
+        d.add(Rect(x + 6, y + h - 12, min(42, w - 12), 8, rx=4, ry=4,
+                   fillColor=palette["tag_fill"],
+                   strokeColor=None))
+        d.add(String(x + 9, y + h - 9.5, palette["tag"],
+                     fontSize=4.3, fontName="Helvetica-Bold",
+                     fillColor=palette["tag_text"]))
+
+        if node.get("id") == "__victim_input_cluster__":
+            title = "Victim input set"
+            subtitle = f"{node.get('member_count', 0)} addresses"
+            amount_line = f"{_fmt_btc(node.get('total_out_btc'))} BTC"
+        elif node.get("kind") == "victim":
+            title = "Victim input"
+            subtitle = _short(node.get("address", ""))
+            amount_line = f"{_fmt_btc(node.get('total_out_btc'))} BTC"
+        elif node.get("kind") == "recipient":
+            title = "Recipient"
+            subtitle = _short(node.get("address", ""))
+            amount_line = f"{_fmt_btc(max(node.get('total_in_btc') or 0, node.get('total_out_btc') or 0))} BTC"
+        elif node.get("kind") == "exchange":
+            title = node.get("exchange") or "Exchange"
+            subtitle = _short(node.get("address", ""))
+            amount_line = f"{_fmt_btc(node.get('total_in_btc'))} BTC"
+        else:
+            title = "Traced address"
+            subtitle = _short(node.get("address", ""))
+            amount_line = f"{_fmt_btc(max(node.get('total_in_btc') or 0, node.get('total_out_btc') or 0))} BTC"
+
+        status = _status_label(str(node.get("chain_end_reason") or ""))
+
+        d.add(String(x + 8, y + h - 20, title,
+                     fontSize=6.5, fontName="Helvetica-Bold",
+                     fillColor=C_DARK))
+        d.add(String(x + 8, y + h - 29, subtitle,
+                     fontSize=5.2, fontName="Courier",
+                     fillColor=colors.HexColor("#475569")))
+        d.add(String(x + 8, y + h - 38, amount_line,
+                     fontSize=5.2, fontName="Helvetica",
+                     fillColor=C_DARK))
+        if status:
+            d.add(String(x + 8, y + 6, status,
+                         fontSize=4.8, fontName="Helvetica-Bold",
+                         fillColor=colors.HexColor("#92400E")))
+
+    legend_y = 10
     legend_items = [
-        (COL_VICTIM,   "Victim address"),
-        (COL_THIEF,    "Suspect address"),
-        (COL_INTER,    "Intermediary (unidentified)"),
-        (COL_EXCHANGE, "Identified exchange"),
+        ("victim", "Victim-controlled input set"),
+        ("recipient", "Initial recipient / traced target path"),
+        ("address", "Intermediate traced address"),
+        ("exchange", "Corroborated exchange endpoint"),
     ]
-    lx = 10
-    ly = 10
-    for col, label in legend_items:
-        c = Circle(lx + 5, ly + 4, 4, fillColor=col,
-                   strokeColor=COL_WHITE, strokeWidth=0.8)
-        d.add(c)
-        s = String(lx + 12, ly + 1, label,
-                   fontSize=6, fillColor=COL_EDGE)
-        d.add(s)
-        lx += 50
+    legend_x = 12
+    for kind, label in legend_items:
+        palette = _palette(kind)
+        d.add(Rect(legend_x, legend_y, 8, 8, rx=2, ry=2,
+                   fillColor=palette["fill"], strokeColor=palette["stroke"], strokeWidth=0.9))
+        d.add(String(legend_x + 12, legend_y + 1.5, label,
+                     fontSize=5.6, fontName="Helvetica",
+                     fillColor=C_DARK))
+        legend_x += 118
 
     story.append(d)
     story.append(Spacer(1, 6))
     story.append(Paragraph(
-        "Dashed lines = L2 (forensically corroborated, not mathematically proven) | "
-        "Solid lines = L1 (mathematically proven via UTXO)",
+        "Solid connectors indicate L1 (mathematically proven via UTXO). "
+        "Dashed connectors indicate L2 (forensically corroborated). "
+        "This diagram is intentionally condensed for report readability; the authoritative transaction-by-transaction evidence is set out in Section 2.",
         styles["small"]
     ))
     story.append(Spacer(1, 8))
