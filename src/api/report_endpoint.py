@@ -383,34 +383,74 @@ def _generate_pdf(case_id: str, req: ReportRequest, hop0: dict, hops: list, exch
     return pdf_path
 
 
-def _generate_freeze_requests(case_id: str, exchanges: list) -> list:
-    """Generate one freeze-request PDF per exchange, grouped by exchange name."""
-    import src.investigation.generate_case_report as gcr
-    styles = gcr._styles()
-
-    # Gruppierung: alle Adressen und Beträge pro Exchange-Name zusammenführen
+def _group_exchanges_for_freeze(exchanges: list) -> dict[str, dict]:
+    """Group exchange hits by exchange name for one freeze request per exchange."""
     grouped: dict[str, dict] = {}
     for ex in exchanges:
         name = ex["name"]
         if name not in grouped:
-            grouped[name] = {**ex, "all_addresses": [(ex["address"], ex["btc_involved"])]}
+            grouped[name] = {
+                **ex,
+                "all_addresses": [(ex["address"], ex["btc_involved"])],
+                "address_count": 1,
+            }
         else:
             grouped[name]["btc_involved"] += ex.get("btc_involved", 0)
             grouped[name]["all_addresses"].append((ex["address"], ex["btc_involved"]))
-            grouped[name]["note"] = (
-                f"{len(grouped[name]['all_addresses'])} deposit address(es) attributed to this exchange. "
-                f"Total amount: {grouped[name]['btc_involved']:.8f} BTC."
-            )
+            grouped[name]["address_count"] = len(grouped[name]["all_addresses"])
+        grouped[name]["note"] = (
+            f"{len(grouped[name]['all_addresses'])} deposit address(es) attributed to this exchange. "
+            f"Total amount: {grouped[name]['btc_involved']:.8f} BTC."
+        )
+    return grouped
 
-    paths = []
+
+def _generate_freeze_requests(case_id: str, exchanges: list) -> list[dict]:
+    """Generate one freeze-request PDF per exchange, grouped by exchange name."""
+    import src.investigation.generate_case_report as gcr
+    styles = gcr._styles()
+
+    grouped = _group_exchanges_for_freeze(exchanges)
+
+    generated = []
     for name, ex in grouped.items():
         path = str(OUTPUT_DIR / f"{case_id}_Freeze_Request_{name}.pdf")
         try:
             gcr._freeze_request(ex, styles, path)
-            paths.append(path)
+            generated.append({
+                "name": name,
+                "path": path,
+                "url": f"/api/intel/freeze-pdf/{case_id}/{name}",
+                "compliance_email": ex.get("compliance_email", ""),
+                "address_count": ex.get("address_count", len(ex.get("all_addresses", []))),
+                "btc_involved": ex.get("btc_involved", 0.0),
+                "confidence": ex.get("confidence", "L2"),
+                "note": ex.get("note", ""),
+            })
         except Exception as e:
             logger.warning(f"Freeze request failed for {name}: {e}")
-    return paths
+    return generated
+
+
+def _normalize_freeze_requests(case_id: str, freeze_requests: list) -> list[dict]:
+    normalized: list[dict] = []
+    for item in freeze_requests:
+        if isinstance(item, dict):
+            normalized.append(item)
+            continue
+        if isinstance(item, str):
+            name = pathlib.Path(item).stem.removeprefix(f"{case_id}_Freeze_Request_")
+            normalized.append({
+                "name": name,
+                "path": item,
+                "url": f"/api/intel/freeze-pdf/{case_id}/{name}",
+                "compliance_email": "",
+                "address_count": 0,
+                "btc_involved": 0.0,
+                "confidence": "L2",
+                "note": "",
+            })
+    return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +620,7 @@ async def generate_report(req: ReportRequest):
 
         # 8. PDF + Freeze Requests
         pdf_path = _generate_pdf(case_id, req, hop0, hops, exchanges)
-        freeze_paths = _generate_freeze_requests(case_id, exchanges)
+        freeze_requests = _normalize_freeze_requests(case_id, _generate_freeze_requests(case_id, exchanges))
 
         logger.info(f"{case_id}: {len(all_hops)} hops, exchanges: {[e['name'] for e in exchanges]}")
 
@@ -593,9 +633,10 @@ async def generate_report(req: ReportRequest):
             "exchanges_identified": [e["name"] for e in exchanges],
             "actual_amount_btc": req.fraud_amount_btc,
             "sanctioned_addresses": sum(1 for h in all_hops if h.get("is_sanctioned")),
-            "freeze_requests_generated": len(freeze_paths),
+            "freeze_requests_generated": len(freeze_requests),
+            "freeze_requests": freeze_requests,
             "pdf_download_url": f"/api/intel/report-pdf/{case_id}",
-            "freeze_request_urls": list({f"/api/intel/freeze-pdf/{case_id}/{ex['name']}" for ex in exchanges}),
+            "freeze_request_urls": [item["url"] for item in freeze_requests],
         })
 
     except HTTPException:

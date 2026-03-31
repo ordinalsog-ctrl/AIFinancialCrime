@@ -113,6 +113,18 @@
   .btn-download{display:inline-flex;align-items:center;gap:8px;background:var(--success);color:white;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;transition:all 0.2s}
   .btn-download:hover{background:#0a6040}
   .btn-preview{display:inline-flex;align-items:center;gap:8px;background:var(--surface2);color:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:14px 28px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;transition:all 0.2s;margin-left:12px}
+  .result-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .freeze-panel{margin-top:18px;background:rgba(10,14,23,0.42);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .freeze-panel h4{font-size:14px;font-weight:600;margin-bottom:8px}
+  .freeze-panel p{color:var(--text2);font-size:12px;margin-bottom:12px}
+  .freeze-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .freeze-card{background:rgba(10,14,23,0.46);border:1px solid rgba(251,191,36,0.18);border-radius:12px;padding:14px}
+  .freeze-card h5{font-size:14px;font-weight:600;margin-bottom:6px;color:#f8fafc}
+  .freeze-meta{display:grid;gap:6px;margin-bottom:12px}
+  .freeze-meta div{font-size:11px;color:var(--text2);font-family:var(--mono);line-height:1.45}
+  .freeze-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn-freeze{display:inline-flex;align-items:center;gap:8px;background:rgba(180,83,9,0.16);color:#fbbf24;border:1px solid rgba(180,83,9,0.3);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;text-decoration:none;transition:all 0.2s}
+  .btn-freeze:hover{background:rgba(180,83,9,0.22);border-color:#fbbf24}
   .pdf-preview-container{width:100%;height:70vh;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:20px;display:none}
   .pdf-preview-container iframe{width:100%;height:100%;border:none}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -198,7 +210,7 @@
   .route-chip.muted{opacity:0.75}
   .timeline-notes{font-size:12px;color:var(--text2)}
   @media (max-width: 1100px){.graph-shell{grid-template-columns:1fr}.graph-details{position:static}.result-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media (max-width: 720px){.container{padding:24px 14px}.result-stats{grid-template-columns:1fr}.graph-toolbar{align-items:flex-start}.graph-toolset{width:100%}.graph-toolbtn{flex:1;text-align:center}}
+  @media (max-width: 720px){.container{padding:24px 14px}.result-stats{grid-template-columns:1fr}.graph-toolbar{align-items:flex-start}.graph-toolset{width:100%}.graph-toolbtn{flex:1;text-align:center}.result-actions{flex-direction:column;align-items:stretch}.btn-preview{margin-left:0}}
 
 </style>
 </head>
@@ -1114,6 +1126,31 @@ function renderStatCard(label, value, tone = '', subtext = '') {
   return `<div class="stat-card ${tone}"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(String(value))}</div>${subtext ? `<div class="stat-sub">${escapeHtml(subtext)}</div>` : ''}</div>`;
 }
 
+function renderFreezeRequests(freezeRequests) {
+  if (!freezeRequests || !freezeRequests.length) return '';
+  return `
+    <div class="freeze-panel">
+      <h4>Freeze Request Package</h4>
+      <p>Corroborated exchange endpoints identified in this run. Each package is generated from the same evidentiary trace and report output.</p>
+      <div class="freeze-grid">
+        ${freezeRequests.map(item => `
+          <div class="freeze-card">
+            <h5>${escapeHtml(item.name)}</h5>
+            <div class="freeze-meta">
+              <div>Addresses: ${escapeHtml(String(item.address_count || 0))}</div>
+              <div>BTC traced: ${escapeHtml(formatBtc(item.btc_involved || 0))} BTC</div>
+              <div>Confidence: ${escapeHtml(item.confidence || 'L2')}</div>
+              <div>Compliance: ${escapeHtml(item.compliance_email || '—')}</div>
+            </div>
+            <div class="freeze-actions">
+              <a class="btn-freeze" href="${API_BASE}${item.url}" target="_blank">Freeze Request PDF</a>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
 function renderAddressChips(entries) {
   if (!entries || !entries.length) return '<span class="route-chip muted">—</span>';
   return entries.map(([addr, amount]) => {
@@ -1572,6 +1609,7 @@ function showResult() {
   const rawNodeCount = graph.stats?.node_count || 0;
   const visibleNodeCount = normalizedGraph?.stats?.node_count || 0;
   const rawVictimNodeCount = (graph.nodes || []).filter(node => node.kind === 'victim').length;
+  const freezeRequests = resultData.freeze_requests || [];
   document.getElementById('resultDesc').textContent =
     `Case ${resultData.case_id} · ${resultData.hops_found} hops analysed`;
 
@@ -1589,6 +1627,7 @@ function showResult() {
       ${renderStatCard('Exchanges', resultData.exchanges_identified?.length || 0, 'exchange')}
       ${renderStatCard('Sanctions Flags', resultData.sanctioned_addresses || 0, resultData.sanctioned_addresses ? 'exchange' : 'success')}
     </div>
+    ${renderFreezeRequests(freezeRequests)}
     <div style="margin-bottom:10px">${hopBadges}</div>
     <div class="graph-shell">
       <div class="graph-panel">

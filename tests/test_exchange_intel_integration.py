@@ -198,7 +198,22 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
              patch.object(report_endpoint, "_get_tx_block_info", return_value=(123456, "2026-03-24 12:00:00 UTC")), \
              patch.object(report_endpoint, "_get_tx_outputs", return_value=[("33qXiU6YcrZv2YBi2mCoYKgEohiN2REkJ2", 0.25015009)]), \
              patch.object(report_endpoint, "_generate_pdf", return_value="/tmp/test.pdf"), \
-             patch.object(report_endpoint, "_generate_freeze_requests", return_value=["/tmp/freeze.pdf"]), \
+             patch.object(
+                 report_endpoint,
+                 "_generate_freeze_requests",
+                 return_value=[
+                     {
+                         "name": "Coinbase",
+                         "path": "/tmp/freeze.pdf",
+                         "url": "/api/intel/freeze-pdf/AIFC-TEST-RECIPIENT-EXCHANGE/Coinbase",
+                         "compliance_email": "compliance@coinbase.com",
+                         "address_count": 1,
+                         "btc_involved": 0.25015009,
+                         "confidence": "L1",
+                         "note": "Exchange endpoint",
+                     }
+                 ],
+             ), \
              patch.object(
                  report_endpoint,
                  "_trace_victim_chain",
@@ -248,6 +263,9 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["hops_found"], 2)
         self.assertEqual(payload["exchanges_identified"], ["Coinbase"])
         self.assertEqual(payload["freeze_requests_generated"], 1)
+        self.assertEqual(len(payload["freeze_requests"]), 1)
+        self.assertEqual(payload["freeze_requests"][0]["name"], "Coinbase")
+        self.assertEqual(payload["freeze_requests"][0]["address_count"], 1)
 
     def test_flow_graph_uses_input_contribution_for_multi_input_single_target(self) -> None:
         graph = report_helpers._build_flow_graph(

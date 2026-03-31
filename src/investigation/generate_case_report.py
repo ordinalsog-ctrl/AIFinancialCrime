@@ -903,19 +903,22 @@ def _freeze_request(exchange_data, styles, output_path):
         f"On {_case_text('incident_date')}, <b>{_btc_label(CASE.get('fraud_amount'))}</b> "
         f"was withdrawn without authorization from my wallet environment. "
         f"The attached forensic blockchain analysis shows that part of these funds "
-        f"passed through your platform.",
+        f"passed through your platform. This request is limited to the addresses and transaction path "
+        f"for which a corroborated exchange attribution was identified in the attached report.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
 
     # Identifizierte Adressen
-    story.append(Paragraph("Identified addresses on your platform:", styles["h2"]))
+    story.append(Paragraph("Exchange attribution summary:", styles["h2"]))
     addr_rows = [
-        ["Bitcoin address", exchange_data["address"]],
-        ["Attribution", exchange_data["label"]],
-        ["Wallet ID", exchange_data["wallet_id"]],
-        ["Confidence", f"{exchange_data['confidence']} - Forensically corroborated (validated source)"],
-        ["BTC involved", f"{exchange_data['btc_involved']:.8f} BTC"],
+        ["Exchange", exchange_data["name"]],
+        ["Primary deposit address", exchange_data["address"]],
+        ["Attributed address count", str(len(exchange_data.get("all_addresses", [(exchange_data["address"], exchange_data["btc_involved"])])))],
+        ["Confidence", f"{exchange_data['confidence']} - Forensically corroborated exchange attribution"],
+        ["Total BTC involved", f"{exchange_data['btc_involved']:.8f} BTC"],
+        ["Attribution basis", exchange_data.get("note", "See attached forensic report.")],
+        ["Wallet ID", exchange_data.get("wallet_id") or "—"],
     ]
     addr_tbl = Table(addr_rows, colWidths=[35*mm, PAGE_W - 2*MARGIN - 35*mm])
     addr_tbl.setStyle(TableStyle([
@@ -929,6 +932,25 @@ def _freeze_request(exchange_data, styles, output_path):
         ("LEFTPADDING",   (0,0), (-1,-1), 8),
     ]))
     story.append(addr_tbl)
+    story.append(Spacer(1, 8))
+
+    all_addresses = exchange_data.get("all_addresses") or [(exchange_data["address"], exchange_data["btc_involved"])]
+    story.append(Paragraph("Attributed deposit addresses:", styles["h2"]))
+    address_rows = [["Bitcoin address", "BTC traced into endpoint"]]
+    for address, btc in all_addresses:
+        address_rows.append([address, f"{float(btc or 0):.8f} BTC"])
+    address_tbl = Table(address_rows, colWidths=[95*mm, PAGE_W - 2*MARGIN - 95*mm])
+    address_tbl.setStyle(TableStyle([
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 8),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [C_WHITE, C_LIGHT]),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#F8FAFC")),
+        ("GRID", (0,0), (-1,-1), 0.3, C_BORDER),
+        ("TOPPADDING", (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+        ("LEFTPADDING", (0,0), (-1,-1), 6),
+    ]))
+    story.append(address_tbl)
     story.append(Spacer(1, 8))
 
     # Originating transaction
@@ -962,7 +984,8 @@ def _freeze_request(exchange_data, styles, output_path):
         "• EU Anti-Money Laundering Directive (AMLD5/6) - exchanges are expected to cooperate where there is a substantiated suspicion of fraud or money laundering.\n"
         "• FATF Recommendation 16 (Travel Rule) - transfer tracing obligations may apply.\n"
         "• Applicable national fraud and cybercrime provisions may be engaged, subject to the relevant jurisdiction.\n"
-        "• A full forensic blockchain analysis is attached to this request.",
+        "• The attached report identifies the traced path, relevant transaction identifiers and attributed exchange endpoints.\n"
+        "• This request does not assert ownership of every account at the exchange, but seeks urgent preservation of all records and balances reasonably linked to the listed deposit endpoints pending further review.",
         styles["body"]
     ))
     story.append(Spacer(1, 8))
