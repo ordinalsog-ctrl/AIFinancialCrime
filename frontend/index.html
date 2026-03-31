@@ -1187,15 +1187,24 @@ function showNodeDetails(nodeId) {
     reason ? `<span class="detail-chip ${reason[1]}">${escapeHtml(reason[0])}</span>` : '',
     node.has_change_output ? '<span class="detail-chip warn">Change Output</span>' : '',
   ].filter(Boolean).join('');
+  const isVictimCluster = node.id === '__victim_input_cluster__';
+  const addressLabel = isVictimCluster ? 'Grouped Inputs' : 'Address';
+  const addressValue = isVictimCluster
+    ? `${node.member_count || 0} victim-controlled inputs`
+    : node.address;
+  const extraClusterDetail = isVictimCluster
+    ? `<div class="detail-item"><strong>Included Addresses</strong><div>${escapeHtml((node.member_addresses || []).join(' · ') || '—')}</div></div>`
+    : '';
   document.getElementById('graphDetails').innerHTML = `
     <h4>Node Details</h4>
     <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">${chips}</div>
     <div class="detail-list">
-      <div class="detail-item"><strong>Address</strong><div>${escapeHtml(node.address)}</div></div>
+      <div class="detail-item"><strong>${addressLabel}</strong><div>${escapeHtml(addressValue)}</div></div>
       <div class="detail-item"><strong>Graph Level</strong><div>${node.column === 0 ? 'Victim' : `Hop ${node.column - 1}`}</div></div>
       <div class="detail-item"><strong>BTC Flow</strong><div>Incoming: ${formatBtc(node.total_in_btc)} BTC · Outgoing: ${formatBtc(node.total_out_btc)} BTC</div></div>
       ${node.exchange ? `<div class="detail-item"><strong>Exchange</strong><div>${escapeHtml(node.exchange)}</div></div>` : ''}
       ${node.chain_end_reason ? `<div class="detail-item"><strong>Chain End</strong><div>${escapeHtml((chainEndMeta(node.chain_end_reason) || [node.chain_end_reason])[0])}</div></div>` : ''}
+      ${extraClusterDetail}
     </div>`;
 }
 
@@ -1266,17 +1275,86 @@ function resetGraphZoom() {
   setGraphZoom(1);
 }
 
+function normalizeFlowGraph(graph) {
+  if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) return graph;
+
+  let nodes = graph.nodes.map(node => ({ ...node }));
+  let edges = graph.edges.map(edge => ({ ...edge }));
+  let lanes = Array.isArray(graph.lanes) ? graph.lanes.map(lane => ({ ...lane })) : [];
+
+  const victimNodes = nodes.filter(node => node.kind === 'victim');
+  if (victimNodes.length > 1) {
+    const victimIds = new Set(victimNodes.map(node => node.id));
+    const clusterId = '__victim_input_cluster__';
+    const aggregatedEdges = new Map();
+    const preservedEdges = [];
+
+    for (const edge of edges) {
+      if (victimIds.has(edge.from)) {
+        const target = edge.to;
+        if (!aggregatedEdges.has(target)) {
+          aggregatedEdges.set(target, {
+            ...edge,
+            id: `${clusterId}:${target}`,
+            from: clusterId,
+            amount_btc: 0,
+            amount_context: 'input_set_total',
+            notes: 'Aggregated victim-controlled input set.',
+            source_addresses: [],
+          });
+        }
+        const aggregated = aggregatedEdges.get(target);
+        const amount = Number(edge.amount_btc || 0);
+        if (Number.isFinite(amount)) aggregated.amount_btc += amount;
+        aggregated.source_addresses.push(edge.from);
+      } else {
+        preservedEdges.push(edge);
+      }
+    }
+
+    nodes = nodes.filter(node => !victimIds.has(node.id));
+    nodes.push({
+      id: clusterId,
+      address: '',
+      column: 0,
+      kind: 'victim',
+      exchange: '',
+      is_sanctioned: victimNodes.some(node => node.is_sanctioned),
+      total_in_btc: 0,
+      total_out_btc: victimNodes.reduce((sum, node) => sum + Number(node.total_out_btc || 0), 0),
+      has_change_output: false,
+      chain_end_reason: '',
+      display_label: 'Victim input set',
+      short_address: `${victimNodes.length} addresses`,
+      member_count: victimNodes.length,
+      member_addresses: victimNodes.map(node => node.address).filter(Boolean),
+    });
+    edges = preservedEdges.concat(Array.from(aggregatedEdges.values()));
+    lanes = lanes.map(lane => Number(lane.column) === 0 ? { ...lane, label: 'Victim Inputs' } : lane);
+  }
+
+  const stats = {
+    node_count: nodes.length,
+    edge_count: edges.length,
+    exchange_count: nodes.filter(node => node.kind === 'exchange').length,
+    max_column: nodes.reduce((max, node) => Math.max(max, Number(node.column || 0)), 0),
+  };
+
+  return { ...graph, nodes, edges, lanes, stats };
+}
+
 function renderFlowGraph(graph) {
   const canvas = document.getElementById('graphCanvas');
   if (!canvas) return;
-  if (!graph || !graph.nodes || !graph.nodes.length) {
+  const normalizedGraph = normalizeFlowGraph(graph);
+  if (!normalizedGraph || !normalizedGraph.nodes || !normalizedGraph.nodes.length) {
     canvas.innerHTML = '<div class="graph-empty">No graph data is available for this run.</div>';
     currentGraphModel = null;
     return;
   }
 
   const columns = new Map();
-  for (const node of graph.nodes) {
+  for (const node of normalizedGraph.nodes) {
     const col = Number(node.column || 0);
     if (!columns.has(col)) columns.set(col, []);
     columns.get(col).push(node);
@@ -1304,7 +1382,7 @@ function renderFlowGraph(graph) {
 
   colKeys.forEach((col, index) => {
     const x = padX + index * columnGap;
-    const lane = (graph.lanes || []).find(item => Number(item.column) === col);
+    const lane = (normalizedGraph.lanes || []).find(item => Number(item.column) === col);
     laneHtml.push(`<div class="graph-lane-label" style="left:${x}px;width:${nodeWidth}px">${escapeHtml(lane?.label || (col === 0 ? 'Victim' : `Hop ${col - 1}`))}</div>`);
     const columnNodes = columns.get(col);
     const columnHeight = columnNodes.length * nodeHeight + Math.max(0, columnNodes.length - 1) * rowGap;
@@ -1329,7 +1407,7 @@ function renderFlowGraph(graph) {
     });
   });
 
-  const edgeHtml = (graph.edges || []).map(edge => {
+  const edgeHtml = (normalizedGraph.edges || []).map(edge => {
     const from = positions[edge.from];
     const to = positions[edge.to];
     if (!from || !to) return '';
@@ -1357,9 +1435,9 @@ function renderFlowGraph(graph) {
     ${nodeHtml.join('')}`;
 
   currentGraphModel = {
-    ...graph,
-    nodeIndex: Object.fromEntries((graph.nodes || []).map(node => [node.id, node])),
-    edgeIndex: Object.fromEntries((graph.edges || []).map(edge => [edge.id, edge])),
+    ...normalizedGraph,
+    nodeIndex: Object.fromEntries((normalizedGraph.nodes || []).map(node => [node.id, node])),
+    edgeIndex: Object.fromEntries((normalizedGraph.edges || []).map(edge => [edge.id, edge])),
   };
   currentGraphLayout = { width, height, nodeWidth, nodeHeight };
   document.querySelectorAll('.graph-node-card').forEach(el => el.addEventListener('click', () => showNodeDetails(el.dataset.nodeId)));
