@@ -14,7 +14,6 @@ def trace_victim_chain(
     get_tx_outputs,
     check_address,
     is_acam_burdenable_attribution,
-    attribution_cache,
     logger,
     max_hops: int = 8,
 ) -> list:
@@ -27,9 +26,8 @@ def trace_victim_chain(
     - Jeder Pfad endet bei Exchange, Pooling oder unspent UTXO
     - visited_spending_txids verhindert Schleifen
 
-    WICHTIG: Der erste Queue-Eintrag (recipient_address direkt aus fraud_txid) wird
-    NIE durch den Exchange-Cache-Check abgebrochen. Mindestens 1 L1-Hop muss
-    immer verfolgt werden, auch wenn recipient_address als Exchange bekannt ist.
+    Jede Adresse wird frisch geprüft. Es gibt keinen fachlichen Exchange-Cache,
+    der einen aktuellen Falllauf vorzeitig beeinflusst.
     """
     hops = []
     visited_spending_txids = set()
@@ -71,30 +69,6 @@ def trace_victim_chain(
 
         if vout_idx is None:
             logger.info(f"  TRACER: vout_idx None for {current_address[:20]}, skip")
-            continue
-
-        is_initial_step = current_address == recipient_address and current_txid == fraud_txid
-        cached_attr = attribution_cache.get(current_address, {})
-        if is_acam_burdenable_attribution(cached_attr) and not is_initial_step:
-            logger.info(
-                f"  TRACER: EARLY EXIT — {current_address[:20]} cached as "
-                f"{cached_attr.get('exchange')}"
-            )
-            if hops:
-                for hop in reversed(hops):
-                    if any(a == current_address for a, _ in hop.get("to_addresses", [])):
-                        hop["confidence"] = "L2"
-                        hop["confidence_label"] = "Forensically corroborated"
-                        hop["exchange"] = cached_attr["exchange"]
-                        hop["exchange_wallet_id"] = cached_attr.get("wallet_id", "")
-                        hop["exchange_source"] = cached_attr.get("source", "")
-                        hop["label"] = f"Exchange deposit -> {cached_attr['exchange']}"
-                        hop["method"] = f"Downstream analysis ({cached_attr.get('label', '')})"
-                        hop["notes"] += (
-                            f" Address identified as {cached_attr['exchange']} deposit infrastructure."
-                        )
-                        hop["chain_end_reason"] = "exchange"
-                        break
             continue
 
         spend_state, spending_txid = get_spending_info(current_txid, vout_idx, rpc)
@@ -276,6 +250,15 @@ def trace_victim_chain(
             "is_sanctioned": sanctioned,
             "chain_end_reason": chain_end_reason,
             "exchange_addresses": list(exchange_hits.keys()),
+            "exchange_details": {
+                addr: {
+                    "exchange": info.get("exchange"),
+                    "wallet_id": info.get("wallet_id", ""),
+                    "source": info.get("source", ""),
+                    "label": info.get("label", ""),
+                }
+                for addr, info in exchange_hits.items()
+            },
         }
 
         if exchange_hits:

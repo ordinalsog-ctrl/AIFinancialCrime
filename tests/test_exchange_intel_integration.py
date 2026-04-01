@@ -59,7 +59,7 @@ class _FakeSpendScanRpc:
 
 class ExchangeIntelIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
-        report_endpoint._attribution_cache.clear()
+        report_endpoint._manual_attributions.clear()
 
     def test_exchange_intel_lookup_accepts_entity_object(self) -> None:
         payload = {
@@ -135,6 +135,25 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
         intel_mock.assert_called_once_with("35Pt1UNGaikeAEFzPsdzAghyrNoyjbdNVo")
         self.assertEqual(result["exchange"], "Kraken")
         self.assertEqual(result["source"], "exchange-intel/wallet_label")
+
+    def test_check_address_requeries_same_address_without_cache(self) -> None:
+        exchange_hit = {
+            "exchange": "Coinbase",
+            "label": "Coinbase (seed)",
+            "wallet_id": "",
+            "source": "exchange-intel/seed",
+            "confidence": "L1",
+            "is_sanctioned": False,
+        }
+
+        with patch.object(report_endpoint, "_exchange_intel_lookup", return_value=exchange_hit) as intel_mock, \
+             patch.object(report_endpoint, "_chainalysis_check", return_value=False):
+            first = report_endpoint._check_address("bc1qexamplecachetest000000000000000000000")
+            second = report_endpoint._check_address("bc1qexamplecachetest000000000000000000000")
+
+        self.assertEqual(intel_mock.call_count, 2)
+        self.assertEqual(first["exchange"], "Coinbase")
+        self.assertEqual(second["exchange"], "Coinbase")
 
     def test_get_spending_info_falls_back_to_local_block_scan(self) -> None:
         rpc = _FakeSpendScanRpc()
@@ -240,10 +259,6 @@ class ExchangeIntelIntegrationTests(unittest.TestCase):
 
             def _check_side_effect(address: str, use_downstream: bool = True):
                 if address == "33qXiU6YcrZv2YBi2mCoYKgEohiN2REkJ2" and not use_downstream:
-                    report_endpoint._attribution_cache[address] = {
-                        **exchange_hit,
-                        "_downstream_checked": False,
-                    }
                     return exchange_hit
                 return {
                     "exchange": None,

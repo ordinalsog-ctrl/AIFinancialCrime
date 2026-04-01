@@ -50,7 +50,6 @@ from src.api.report_tx_helpers import (
     _get_tx_outputs,
     _get_victim_amount_from_inputs,
     _save_tx_to_db,
-    _spend_resolution_cache,
 )
 
 logger = logging.getLogger(__name__)
@@ -144,7 +143,7 @@ class ReportRequest(BaseModel):
     manual_attributions: dict[str, str] = {}  # {address: exchange_name}
 
 
-_attribution_cache: dict[str, dict] = {}
+_manual_attributions: dict[str, dict] = {}
 
 
 def _chainalysis_check(address: str) -> bool:
@@ -172,8 +171,8 @@ def _check_address(address: str, use_downstream: bool = True) -> dict:
     Die Exchange-Erkennung selbst ist zentral im Agenten gebuendelt.
     """
     _ = use_downstream
-    if address in _attribution_cache:
-        return _attribution_cache[address]
+    if address in _manual_attributions:
+        return dict(_manual_attributions[address])
 
     result = {"exchange": None, "is_sanctioned": False, "source": None,
               "label": None, "wallet_id": None, "confidence": "L1"}
@@ -183,16 +182,15 @@ def _check_address(address: str, use_downstream: bool = True) -> dict:
 
     result["is_sanctioned"] = _chainalysis_check(address)
     result["_downstream_checked"] = True
-    _attribution_cache[address] = result
     return result
 
 
 def _apply_manual_attributions(manual_attributions: dict[str, str]) -> None:
-    """Schreibt manuelle Exchange-Attributionen in den Cache (höchste Priorität)."""
+    """Schreibt manuelle Exchange-Attributionen für den aktuellen Lauf."""
     for address, exchange_name in manual_attributions.items():
         canonical = _canonical_exchange_name(exchange_name)
         compliance_email = EXCHANGE_COMPLIANCE.get(canonical, "")
-        _attribution_cache[address] = {
+        _manual_attributions[address] = {
             "exchange": canonical,
             "label": f"{canonical} (manually confirmed)",
             "wallet_id": "",
@@ -220,7 +218,6 @@ def _trace_victim_chain(fraud_txid: str, recipient_address: str, rpc, conn, max_
         get_tx_outputs=_get_tx_outputs,
         check_address=_check_address,
         is_acam_burdenable_attribution=_is_acam_burdenable_attribution,
-        attribution_cache=_attribution_cache,
         logger=logger,
         max_hops=max_hops,
     )
@@ -288,8 +285,9 @@ def _build_exchanges(all_hops: list) -> list:
         # Exchange-Adresse aus den Outputs finden
         ex_addr = ""
         ex_btc = 0.0
+        exchange_details = hop.get("exchange_details") or {}
         for addr, btc in hop.get("to_addresses", []):
-            check = _attribution_cache.get(addr, {})
+            check = exchange_details.get(addr, {})
             if check.get("exchange") == name:
                 ex_addr = addr
                 ex_btc = btc
@@ -462,8 +460,7 @@ async def generate_report(req: ReportRequest):
     """
     Forensische Analyse — fokussiert auf den Pfad des gestohlenen Geldes.
     """
-    _attribution_cache.clear()
-    _spend_resolution_cache.clear()
+    _manual_attributions.clear()
     if req.manual_attributions:
         _apply_manual_attributions(req.manual_attributions)
 
@@ -565,6 +562,21 @@ async def generate_report(req: ReportRequest):
         hop0_exchange_addresses = sorted(
             set(([req.recipient_address] if recipient_exchange_info else []) + list(direct_exchanges.keys()))
         )
+        hop0_exchange_details = {
+            addr: {
+                "exchange": info.get("exchange"),
+                "wallet_id": info.get("wallet_id", ""),
+                "source": info.get("source", ""),
+                "label": info.get("label", ""),
+            }
+            for addr, info in (
+                ([(
+                    req.recipient_address,
+                    recipient_exchange_info,
+                )] if recipient_exchange_info else [])
+                + list(direct_exchanges.items())
+            )
+        }
         hop0_has_exchange = bool(direct_exchanges or recipient_exchange_info)
         hop0_exchange = recipient_exchange_info or (next(iter(direct_exchanges.values())) if direct_exchanges else None)
 
@@ -598,9 +610,16 @@ async def generate_report(req: ReportRequest):
                 else "Direct UTXO link"
             ),
             "notes": hop0_notes,
-            "is_sanctioned": any(c.get("is_sanctioned") for c in _attribution_cache.values()),
+            "is_sanctioned": any(
+                info.get("is_sanctioned")
+                for info in (
+                    ([recipient_exchange_info] if recipient_exchange_info else [])
+                    + list(direct_exchanges.values())
+                )
+            ),
             "chain_end_reason": None,
             "exchange_addresses": hop0_exchange_addresses,
+            "exchange_details": hop0_exchange_details,
         }
         if hop0_exchange:
             hop0["exchange"] = hop0_exchange["exchange"]

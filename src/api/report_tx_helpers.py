@@ -10,8 +10,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_spend_resolution_cache: dict[tuple[str, int], tuple[str, Optional[str]]] = {}
-
 
 def _get_tx(txid: str, rpc) -> Optional[dict]:
     """TX via RPC, Fallback Blockstream. Reichert RPC-Daten mit Block-Info an."""
@@ -126,19 +124,13 @@ def _scan_blocks_for_spend(txid: str, vout_idx: int, spend_block_hint: int, rpc)
 
 def _get_spending_info(txid: str, vout_idx: int, rpc) -> tuple[str, Optional[str]]:
     """Findet die ausgebende TX oder liefert einen sauberen Spend-Status."""
-    cache_key = (txid, vout_idx)
-    if cache_key in _spend_resolution_cache:
-        return _spend_resolution_cache[cache_key]
-
     rpc_confirms_spent = False
     spend_block_hint = 0
 
     try:
         utxo = rpc.call("gettxout", [txid, vout_idx])
         if utxo is not None:
-            result = ("unspent", None)
-            _spend_resolution_cache[cache_key] = result
-            return result
+            return ("unspent", None)
         rpc_confirms_spent = True
     except Exception as exc:
         logger.debug(f"gettxout failed {txid[:16]}:{vout_idx}: {exc}")
@@ -156,30 +148,20 @@ def _get_spending_info(txid: str, vout_idx: int, rpc) -> tuple[str, Optional[str
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read())
         if data.get("spent"):
-            result = ("spent", data.get("txid"))
-            _spend_resolution_cache[cache_key] = result
-            return result
+            return ("spent", data.get("txid"))
         if data.get("spent") is False:
-            result = ("unspent", None)
-            _spend_resolution_cache[cache_key] = result
-            return result
+            return ("unspent", None)
     except Exception as exc:
         logger.debug(f"outspend lookup failed {txid[:16]}:{vout_idx}: {exc}")
 
     spending_txid = _scan_blocks_for_spend(txid, vout_idx, spend_block_hint, rpc)
     if spending_txid:
-        result = ("spent", spending_txid)
-        _spend_resolution_cache[cache_key] = result
-        return result
+        return ("spent", spending_txid)
 
     if rpc_confirms_spent:
-        result = ("spent_unresolved", None)
-        _spend_resolution_cache[cache_key] = result
-        return result
+        return ("spent_unresolved", None)
 
-    result = ("unknown", None)
-    _spend_resolution_cache[cache_key] = result
-    return result
+    return ("unknown", None)
 
 
 def _get_victim_amount_from_inputs(fraud_tx: dict, victim_addresses: set, rpc) -> float:
